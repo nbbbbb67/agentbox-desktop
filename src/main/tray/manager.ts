@@ -141,6 +141,7 @@ export class TrayManager {
       },
       {
         label: 'Settings',
+        visible: false,
         click: () => {
           if (this.options.onOpenSettings) {
             this.options.onOpenSettings()

@@ -217,7 +217,8 @@ app.whenReady().then(() => {
     resizeForMainInterface: () => {
       const win = windowManager.getMainWindow()
       if (win && !win.isDestroyed() && !win.isMaximized()) {
-        // 主界面尺寸保持当前值，不在向导完成后强制改宽
+        const [, currentHeight] = win.getSize()
+        win.setSize(1280, currentHeight)
         win.center()
       }
     },

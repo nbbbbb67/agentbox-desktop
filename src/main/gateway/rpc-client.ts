@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
+import { readShellConfig, readOpenClawConfig } from '../config/index.js'
 
 const PROTOCOL_VERSION = 3
 const CLIENT_ID = 'openclaw-desktop'
@@ -342,13 +343,10 @@ function mapErrorCode(code?: string): GatewayRpcErrorCode {
  * 从 ShellConfig + OpenClawConfig 创建 GatewayRpcClient
  * port: shellConfig.lastGatewayPort
  * token: openclawConfig.gateway?.auth?.token
- * 使用动态 import 避免在非 Electron 环境加载 config（依赖 electron.app）
  */
 export async function createGatewayRpcClientFromConfig(
   overrides?: Partial<GatewayRpcClientOptions>
 ): Promise<GatewayRpcClient> {
-  const { readShellConfig } = await import('../config/shell-config.js')
-  const { readOpenClawConfig } = await import('../config/openclaw-config.js')
   const shellConfig = readShellConfig()
   const openclawConfig = readOpenClawConfig()
   const port = overrides?.port ?? shellConfig.lastGatewayPort ?? DEFAULT_GATEWAY_PORT
