@@ -28,6 +28,18 @@
 </p>
 
 <p align="center">
+  <img src="resources/screenshot-installer-user-scope.png" alt="OpenClaw Desktop Windows installer user scope options" width="420" />
+</p>
+
+<p align="center">
+  <img src="resources/screenshot-setup-wizard.png" alt="OpenClaw Desktop first-run setup wizard on Windows" width="640" />
+</p>
+
+<p align="center">
+  <img src="resources/screenshot-gateway-dashboard.png" alt="OpenClaw Control gateway dashboard running on Windows" width="640" />
+</p>
+
+<p align="center">
   <a href="https://github.com/agentkernel/openclaw-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/agentkernel/openclaw-desktop?style=flat-square&color=2563eb&label=latest%20release" alt="Latest release"></a>
   <a href="https://github.com/agentkernel/openclaw-desktop/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/agentkernel/openclaw-desktop/ci.yml?style=flat-square&label=ci" alt="CI"></a>
   <a href="https://github.com/agentkernel/openclaw-desktop/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/agentkernel/openclaw-desktop/release.yml?style=flat-square&label=release" alt="Release workflow"></a>
