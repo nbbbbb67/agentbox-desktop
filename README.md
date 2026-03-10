@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Official-style desktop installer &amp; Windows distribution for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>. Part of the OpenClaw ecosystem.</strong><br />
-  <strong>OpenClaw 小龙虾桌面版一键安装部署 EXE 程序。</strong>
+  <strong>OpenClaw 小龙虾官方桌面版一键安装部署 EXE 程序。</strong>
 </p>
 
 <p align="center">
