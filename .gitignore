@@ -1,7 +1,8 @@
 node_modules
 dist
 out
-build
+build/*
+!build/installer.nsh
 resources/node/
 resources/openclaw/
 .DS_Store
