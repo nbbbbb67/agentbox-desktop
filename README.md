@@ -2,7 +2,7 @@
   <img src="resources/apple-touch-icon.png" alt="OpenClaw Desktop" width="128" height="128" />
 </p>
 
-<h1 align="center">OpenClaw Desktop</h1>
+<h1 align="center">OpenClaw Desktop – Windows Installer &amp; Native Desktop App for OpenClaw AI Agents</h1>
 
 <p align="center">
   <strong>Official-style desktop installer &amp; Windows distribution for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>. Part of the OpenClaw ecosystem.</strong><br />
@@ -65,9 +65,6 @@
 - Update from GitHub Releases without reinstalling from scratch each time
 
 This project is the ideal **OpenClaw Windows installer**, **OpenClaw desktop app**, and **OpenClaw GUI** for your AI agents.
-
-> 搜索关键词（GitHub / Google / AI 搜索会命中）：  
-> how to install openclaw · openclaw windows installer · openclaw desktop app · openclaw setup wizard · run openclaw locally on windows · openclaw gui for windows
 
 ## Features
 
