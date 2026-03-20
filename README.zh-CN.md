@@ -9,6 +9,13 @@
 </p>
 
 <p align="center">
+  <strong>v0.1.1 — 更新亮点 / Highlights</strong><br />
+  <strong>中文：</strong> <strong>飞书访问</strong> — 应用内私聊配对与放行名单（设置、控制台、托盘）；配对批准走内置运行时。捆绑 OpenClaw <code>2026.3.13</code>；使用 HTTPS 代理时为网关合并 Kuae 域名至 <code>NO_PROXY</code>。<br />
+  <strong>EN:</strong> <strong>Feishu Access</strong> — DM pairing &amp; allowlist in-app (Settings, Dashboard, tray); <code>pairing approve</code> uses the bundled runtime. Bundled OpenClaw <code>2026.3.13</code>; Kuae domains merged into <code>NO_PROXY</code> for the gateway behind HTTPS proxy.<br />
+  <a href="#最新亮点">详细说明 ↓</a>
+</p>
+
+<p align="center">
   ⭐ <strong>如果这个项目对你有帮助，请点个 Star！</strong> ⭐
 </p>
 
@@ -30,6 +37,7 @@
 
 <p align="center">
   <a href="./README.md">English</a> •
+  <a href="#最新亮点">最新亮点</a> •
   <a href="#下载">下载</a> •
   <a href="#如何在-windows-上安装-openclaw">为什么需要它</a> •
   <a href="#核心功能">核心功能</a> •
@@ -38,6 +46,20 @@
   <a href="#更新日志">更新日志</a> •
   <a href="#faq">FAQ</a>
 </p>
+
+## 最新亮点
+
+**当前版本：v0.1.1** — 与上方横幅一致，下文为详细说明。
+
+**中文 — v0.1.1 更新点**
+
+- **飞书访问与配对：** 在桌面端内完成飞书私聊配对与放行名单管理，无需依赖全局安装的 `openclaw` CLI。可通过 **设置 → 飞书访问**、**控制台** 或 **托盘菜单** 进入；查看待处理配对码、批准请求、维护已放行用户或手动添加 `open_id`。批准操作通过**内置** Node/OpenClaw 运行时调用，与上游行为一致。
+- **首次运行提示：** 使用飞书且为配对模式时，完成向导会提示先向机器人发私聊，再到 **设置 → 飞书访问** 完成授权。
+
+**English — highlights in v0.1.1**
+
+- **Feishu access & pairing:** Approve Feishu DM pairing and manage the allowlist inside the desktop app—no global `openclaw` CLI required. Open **Feishu Access** from **Settings**, the **Dashboard**, or the **tray menu**; review pending pairing codes, approve requests, edit approved senders, or add an `open_id` manually. Approval calls use the **bundled** Node/OpenClaw runtime so behavior matches upstream.
+- **First-run guidance:** The setup wizard completion step reminds you to DM the bot and then finish access under **Settings → Feishu Access** when using Feishu with pairing.
 
 > `OpenClaw Desktop` 是一个 Windows 分发版，它将上游的 OpenClaw 运行时打包成更易用的桌面体验。它是广泛的 OpenClaw 生态系统的一部分。
 
@@ -54,9 +76,10 @@
 
 ### 0.1.1
 
+- **飞书访问与配对（桌面端）：** 应用内 **飞书访问**，支持待处理私聊配对与放行名单（设置、控制台、托盘）；配对批准通过内置 Node/OpenClaw 运行时执行。**English:** In-app **Feishu Access** for pending pairing and allowlist (Settings, Dashboard, tray); approve uses the bundled runtime.
 - **OpenClaw 运行时：** 捆绑的 OpenClaw 已更新至最新版本 `2026.3.13`，桌面端已支持最新版 OpenClaw 运行时。
 - **Kuae（夸娥云编程套餐）与 HTTPS 代理：** 捆绑的 OpenClaw **网关**子进程会继承系统 `HTTP(S)_PROXY`；部分本机代理会导致访问 Kuae API（`coding-plan-endpoint.kuaecloud.net`）时 TLS 失败。桌面端在启动网关时会自动**合并** `NO_PROXY` / `no_proxy`，加入 `coding-plan-endpoint.kuaecloud.net` 与 `.kuaecloud.net`，使 Kuae 相关请求**直连**，其它厂商仍按原代理设置。调试可设置环境变量 `OPENCLAW_SKIP_KUAE_NO_PROXY=1` 关闭该合并。详见 [FAQ → Kuae 与 HTTPS 代理](#faq)。
-- **文档：** README 中增加上述说明（中英 FAQ / Changelog）。
+- **文档：** README 中增加上述说明（中英 FAQ / 更新日志）。
 
 ### 0.1.0
 
@@ -143,6 +166,7 @@ OpenClaw Desktop
 
 - [架构说明](docs/ARCHITECTURE.md)
 - [产品说明](docs/product-design.md)
+- [飞书配对与授权（桌面端）](docs/feishu-pairing-ux-plan.md)
 
 ## 本地开发
 
