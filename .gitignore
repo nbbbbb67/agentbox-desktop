@@ -12,6 +12,9 @@ resources/openclaw/
 certs/
 *.local
 
+# Maintainer-only local guide (not published on GitHub)
+GitHub-guide.md
+
 # Development reference code (not part of the project)
 openclaw-main/
 .temp-openclaw/
