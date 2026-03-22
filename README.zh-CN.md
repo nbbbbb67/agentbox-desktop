@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">OpenClaw Desktop</h1>
+<p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
   <strong>面向 Windows 的 OpenClaw 官方风格安装器与桌面应用。</strong><br />

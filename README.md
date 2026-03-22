@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">OpenClaw Desktop</h1>
+<p align="center">龙虾智能体官方中文桌面版一键安装部署EXE程序</p>
 
 <p align="center">
   <strong>Official-style Windows installer &amp; desktop app for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.</strong><br />
