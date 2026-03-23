@@ -15,7 +15,47 @@ concurrency:
   group: release-${{ github.workflow }}-${{ github.ref_name || github.run_id }}
   cancel-in-progress: false
 
+env:
+  NODE_VERSION_CI: '22.16.0'
+
 jobs:
+  build_control_ui:
+    name: Build OpenClaw Control UI (Linux)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION_CI }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Control UI for bundle
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: pnpm exec tsx scripts/ci-build-openclaw-control-ui.ts
+
+      - name: Upload Control UI dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-control-ui-dist
+          path: build/_ci_openclaw_control_ui_root/dist/control-ui
+          retention-days: 2
+
   verify:
     name: Verify (lint, type-check, build)
     runs-on: ubuntu-latest
@@ -42,7 +82,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.12.0
+          node-version: ${{ env.NODE_VERSION_CI }}
           cache: pnpm
 
       - name: Install dependencies
@@ -61,6 +101,7 @@ jobs:
     name: Package Windows Installer
     needs:
       - verify
+      - build_control_ui
     runs-on: windows-latest
     permissions:
       contents: read
@@ -90,7 +131,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.12.0
+          node-version: ${{ env.NODE_VERSION_CI }}
           cache: pnpm
 
       - name: Cache Electron
@@ -113,15 +154,26 @@ jobs:
             Copy-Item resources/apple-touch-icon.png apple-touch-icon.png -Force
           }
 
-      - name: Download Node.js and OpenClaw, prepare bundle
+      - name: Download Node.js and OpenClaw (skip Vite on Windows)
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
           npm_config_fetch_retries: "5"
           npm_config_fetch_retry_mintimeout: "20000"
+          OPENCLAW_SKIP_CONTROL_UI_BUILD: "1"
         run: |
           pnpm run download-node
           pnpm run download-openclaw
-          pnpm run prepare-bundle
+
+      - name: Merge OpenClaw Control UI (Linux-built)
+        uses: actions/download-artifact@v4
+        with:
+          name: openclaw-control-ui-dist
+          path: build/openclaw/dist/control-ui
+
+      - name: Prepare bundle
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm run prepare-bundle
 
       - name: Package Windows installer
         run: pnpm run package:win

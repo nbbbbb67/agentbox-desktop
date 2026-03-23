@@ -3,6 +3,9 @@
  * Gateway still serves static assets from that path. This step fetches matching GitHub tag sources
  * (`ui/` + `scripts/ui.js`), runs `vite build` into `../dist/control-ui`, then deletes UI sources
  * and devDependencies so the desktop bundle stays small.
+ *
+ * Note: Vite 8 + Rolldown native bindings often fail on GitHub `windows-latest`; CI builds UI on Linux
+ * and merges `dist/control-ui` before `prepare-bundle` (see release workflow + ci-build-openclaw-control-ui).
  */
 
 import { mkdir, rm, cp, writeFile, readdir, access } from 'node:fs/promises'
@@ -59,23 +62,18 @@ async function downloadToFile(url: string, dest: string): Promise<void> {
 }
 
 /**
- * If `dist/control-ui/index.html` is missing under `openclawDir`, fetch matching GitHub sources and build.
+ * Fetch OpenClaw `ui/` from GitHub tag matching `npmPackageVersion` and run `vite build`
+ * into `openclawRoot/dist/control-ui`. Does not delete sources (caller may clean up).
  */
-export async function ensureOpenClawControlUiBuilt(
-  openclawDir: string,
+export async function downloadAndBuildOpenClawControlUiAt(
+  openclawRoot: string,
   npmPackageVersion: string,
 ): Promise<void> {
-  const indexHtml = join(openclawDir, 'dist', 'control-ui', 'index.html')
-  if (await fileExists(indexHtml)) {
-    console.log('  [control-ui] dist/control-ui already present — skip')
-    return
-  }
-
   const tag = gitTagForNpmVersion(npmPackageVersion)
   const url = tarballUrlForTag(tag)
-  console.log(`  [control-ui] npm package has no static UI; fetching ${tag} sources from GitHub...`)
+  console.log(`  [control-ui] fetching ${tag} sources from GitHub...`)
 
-  const parentTmp = join(openclawDir, '..', '_openclaw_control_ui_tmp')
+  const parentTmp = join(openclawRoot, '..', '_openclaw_control_ui_tmp')
   await rm(parentTmp, { recursive: true, force: true })
   await mkdir(parentTmp, { recursive: true })
 
@@ -89,9 +87,9 @@ export async function ensureOpenClawControlUiBuilt(
 
     const srcRoot = await findExtractedRepoRoot(extractDir)
     const uiSrc = join(srcRoot, 'ui')
-    const uiDest = join(openclawDir, 'ui')
+    const uiDest = join(openclawRoot, 'ui')
     const scriptSrc = join(srcRoot, 'scripts', 'ui.js')
-    const scriptDestDir = join(openclawDir, 'scripts')
+    const scriptDestDir = join(openclawRoot, 'scripts')
     const scriptDest = join(scriptDestDir, 'ui.js')
 
     await rm(uiDest, { recursive: true, force: true })
@@ -112,24 +110,50 @@ export async function ensureOpenClawControlUiBuilt(
       stdio: 'inherit',
     })
 
+    const indexHtml = join(openclawRoot, 'dist', 'control-ui', 'index.html')
     if (!(await fileExists(indexHtml))) {
       throw new Error(`Control UI build finished but missing: ${indexHtml}`)
     }
-
-    console.log('  [control-ui] removing ui/ sources and dev install from bundle...')
-    await rm(uiDest, { recursive: true, force: true })
-    await rm(scriptDest, { force: true })
-    try {
-      const rest = await readdir(scriptDestDir)
-      if (rest.length === 0) {
-        await rm(scriptDestDir, { recursive: true, force: true })
-      }
-    } catch {
-      // ignore
-    }
-
-    console.log('  [control-ui] OK')
   } finally {
     await rm(parentTmp, { recursive: true, force: true })
   }
+}
+
+async function removeBundledUiSources(openclawDir: string): Promise<void> {
+  const uiDest = join(openclawDir, 'ui')
+  const scriptDest = join(openclawDir, 'scripts', 'ui.js')
+  const scriptDestDir = join(openclawDir, 'scripts')
+  await rm(uiDest, { recursive: true, force: true })
+  await rm(scriptDest, { force: true })
+  try {
+    const rest = await readdir(scriptDestDir)
+    if (rest.length === 0) {
+      await rm(scriptDestDir, { recursive: true, force: true })
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * If `dist/control-ui/index.html` is missing under `openclawDir`, fetch matching GitHub tag sources and build.
+ * Strips `ui/` + `scripts/ui.js` after a successful build to keep the bundle lean.
+ */
+export async function ensureOpenClawControlUiBuilt(
+  openclawDir: string,
+  npmPackageVersion: string,
+): Promise<void> {
+  const indexHtml = join(openclawDir, 'dist', 'control-ui', 'index.html')
+  if (await fileExists(indexHtml)) {
+    console.log('  [control-ui] dist/control-ui already present — skip')
+    return
+  }
+
+  console.log(`  [control-ui] npm package has no static UI; building for ${npmPackageVersion}...`)
+  await downloadAndBuildOpenClawControlUiAt(openclawDir, npmPackageVersion)
+
+  console.log('  [control-ui] removing ui/ sources and dev install from bundle...')
+  await removeBundledUiSources(openclawDir)
+
+  console.log('  [control-ui] OK')
 }

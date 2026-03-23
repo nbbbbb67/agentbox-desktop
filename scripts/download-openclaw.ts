@@ -25,6 +25,10 @@ const NODE_EXE = join(BUILD_DIR, 'node', 'node.exe')
 const TMP_DIR = join(BUILD_DIR, '_openclaw_tmp')
 const VERSION_MARKER = '.openclaw-version'
 
+function skipControlUiBuild(): boolean {
+  return process.env.OPENCLAW_SKIP_CONTROL_UI_BUILD === '1'
+}
+
 async function fileExists(p: string): Promise<boolean> {
   try {
     await access(p)
@@ -108,6 +112,12 @@ async function main(): Promise<void> {
         return
       }
       if (!commanderMismatch && !hasControlUi) {
+        if (skipControlUiBuild()) {
+          console.log(
+            '  [skip] dist/control-ui missing — OPENCLAW_SKIP_CONTROL_UI_BUILD=1 (merge artifact before prepare-bundle)',
+          )
+          return
+        }
         console.log(
           '  [info] dist/control-ui missing — building from GitHub sources for this version...',
         )
@@ -236,7 +246,13 @@ async function main(): Promise<void> {
     throw new Error('Required OpenClaw build output missing: dist/entry.(m)js')
   }
 
-  await ensureOpenClawControlUiBuilt(OPENCLAW_DIR, actualVersion)
+  if (skipControlUiBuild()) {
+    console.log(
+      '  [skip] Control UI build skipped (OPENCLAW_SKIP_CONTROL_UI_BUILD=1); supply dist/control-ui before prepare-bundle',
+    )
+  } else {
+    await ensureOpenClawControlUiBuilt(OPENCLAW_DIR, actualVersion)
+  }
 
   console.log(`\n  OK: OpenClaw ${actualVersion} ready at ${OPENCLAW_DIR}\n`)
 }
