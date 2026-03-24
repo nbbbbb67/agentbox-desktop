@@ -260,15 +260,12 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
 
     set({ deployPhase: 'starting', deployMessage: t('wizard.complete.starting') })
     const port = wizardData.gatewayConfig.port
-    const token = wizardData.gatewayConfig.authToken
     let redirected = false
 
     const navigate = () => {
       if (redirected) return
       redirected = true
       set({ deployPhase: 'success', deployMessage: t('wizard.complete.success') })
-      let url = `http://127.0.0.1:${port}/`
-      if (token?.trim()) url += `#token=${encodeURIComponent(token.trim())}`
       setTimeout(() => {
         void (async () => {
           try {
@@ -280,7 +277,11 @@ export const useWizardStore = create<WizardStore>((set, get) => ({
           } catch {
             // Ignore one-shot expand flag write errors; still navigate to main UI
           } finally {
-            window.location.href = url
+            // Do not navigate the top-level document to the gateway URL: the Control UI is meant to
+            // load inside EmbeddedShellLayout's iframe (with token from config). A full window
+            // navigation to http://127.0.0.1 often yields a blank page in packaged builds.
+            window.location.hash = ''
+            window.location.reload()
           }
         })()
       }, 800)
