@@ -45,10 +45,46 @@ type ProviderSeed = {
   providerId: string
   authProviderId?: string
   baseUrl: string
-  api: 'openai-completions' | 'anthropic-messages' | 'openai-responses' | 'ollama'
+  /** OpenClaw `models.providers.*.api`; omit for plugin-native providers (e.g. Google Gemini). */
+  api?: string
 }
 
 const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
+  /** First-party / common API-key providers (wizard must emit `models.providers` + model aliases). */
+  anthropic: {
+    providerId: 'anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-messages',
+  },
+  openai: {
+    providerId: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    api: 'openai-responses',
+  },
+  google: {
+    providerId: 'google',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+  },
+  groq: {
+    providerId: 'groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    api: 'openai-completions',
+  },
+  cerebras: {
+    providerId: 'cerebras',
+    baseUrl: 'https://api.cerebras.ai/v1',
+    api: 'openai-completions',
+  },
+  opencode: {
+    providerId: 'opencode',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    api: 'anthropic-messages',
+  },
+  'vercel-ai-gateway': {
+    providerId: 'vercel-ai-gateway',
+    baseUrl: 'https://ai-gateway.vercel.sh/v1',
+    api: 'openai-completions',
+  },
   moonshot: {
     providerId: 'moonshot',
     baseUrl: 'https://api.moonshot.ai/v1',
@@ -349,7 +385,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
   config.models.providers[seed.providerId] = {
     ...(config.models.providers[seed.providerId] ?? {}),
     baseUrl: seed.baseUrl,
-    api: seed.api,
+    ...(seed.api ? { api: seed.api } : {}),
     ...(apiKey ? { apiKey } : {}),
     models: [buildDefaultProviderModel(modelId)],
   }
