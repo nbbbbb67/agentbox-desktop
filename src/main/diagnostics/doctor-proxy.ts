@@ -6,7 +6,7 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
-import type { DiagnosticReport, DiagnosticItem } from '../../shared/types.js'
+import type { DiagnosticReport, DiagnosticItem, OpenClawConfig } from '../../shared/types.js'
 import { getBundledNodePath, getBundledOpenClawDir, getBundledOpenClawPath, getUserDataDir } from '../utils/paths.js'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
 import { runPrestartCheck } from './prestart-check.js'
@@ -141,7 +141,7 @@ function isPathEqualOrNested(baseDir: string, candidate: string): boolean {
 
 /** Desktop-only diagnostic rows */
 function buildDesktopChecks(deps: {
-  readOpenClawConfig: () => any
+  readOpenClawConfig: () => OpenClawConfig
   readShellConfig: () => { lastGatewayPort?: number }
   gatewayStatus: () => { running: boolean; status: string }
 }): DiagnosticItem[] {
@@ -209,7 +209,7 @@ function buildDesktopChecks(deps: {
 
 /** Full diagnostics → DiagnosticReport */
 export async function runDiagnostics(deps: {
-  readOpenClawConfig: () => any
+  readOpenClawConfig: () => OpenClawConfig
   readShellConfig: () => { lastGatewayPort?: number }
   gatewayStatus: () => { running: boolean; status: string }
 }): Promise<DiagnosticReport> {

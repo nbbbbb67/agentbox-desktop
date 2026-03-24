@@ -58,6 +58,8 @@ export interface GatewayControlUiConfig {
    * Required for embedded dashboard in OpenClaw Desktop.
    */
   allowInsecureAuth?: boolean
+  /** Custom filesystem root for built Control UI (upstream `gateway.controlUi.root`) */
+  root?: string
 }
 
 /** Gateway config */
