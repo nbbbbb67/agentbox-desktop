@@ -1,7 +1,7 @@
 /**
  * npm `openclaw` packages no longer ship `dist/control-ui/` (see upstream package.json "files").
  * Gateway still serves static assets from that path. This step fetches matching GitHub tag sources
- * (`ui/` + `scripts/ui.js` + repo-root `src/` for shared imports), runs `vite build` into
+ * (`ui/` + `scripts/ui.js` + repo-root `src/` + `apps/` for OpenClawKit JSON resources), runs `vite build` into
  * `../dist/control-ui`, then deletes those sources
  * and devDependencies so the desktop bundle stays small.
  *
@@ -99,6 +99,14 @@ export async function downloadAndBuildOpenClawControlUiAt(
     await cp(uiSrc, uiDest, { recursive: true })
     await rm(sharedDest, { recursive: true, force: true })
     await cp(sharedSrc, sharedDest, { recursive: true })
+
+    const appsSrc = join(srcRoot, 'apps')
+    const appsDest = join(openclawRoot, 'apps')
+    if (await fileExists(appsSrc)) {
+      await rm(appsDest, { recursive: true, force: true })
+      await cp(appsSrc, appsDest, { recursive: true })
+    }
+
     await mkdir(scriptDestDir, { recursive: true })
     await cp(scriptSrc, scriptDest)
 
@@ -127,10 +135,12 @@ export async function downloadAndBuildOpenClawControlUiAt(
 async function removeBundledUiSources(openclawDir: string): Promise<void> {
   const uiDest = join(openclawDir, 'ui')
   const sharedDest = join(openclawDir, 'src')
+  const appsDest = join(openclawDir, 'apps')
   const scriptDest = join(openclawDir, 'scripts', 'ui.js')
   const scriptDestDir = join(openclawDir, 'scripts')
   await rm(uiDest, { recursive: true, force: true })
   await rm(sharedDest, { recursive: true, force: true })
+  await rm(appsDest, { recursive: true, force: true })
   await rm(scriptDest, { force: true })
   try {
     const rest = await readdir(scriptDestDir)
@@ -144,7 +154,7 @@ async function removeBundledUiSources(openclawDir: string): Promise<void> {
 
 /**
  * If `dist/control-ui/index.html` is missing under `openclawDir`, fetch matching GitHub tag sources and build.
- * Strips `ui/` + `src/` + `scripts/ui.js` after a successful build to keep the bundle lean.
+ * Strips `ui/` + `src/` + `apps/` + `scripts/ui.js` after a successful build to keep the bundle lean.
  */
 export async function ensureOpenClawControlUiBuilt(
   openclawDir: string,
