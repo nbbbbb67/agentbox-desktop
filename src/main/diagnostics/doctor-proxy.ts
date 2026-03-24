@@ -128,9 +128,20 @@ function parseDoctorOutput(stdout: string, stderr: string): DiagnosticItem[] {
   return items
 }
 
+function normalizeAbsPathForCompare(p: string): string {
+  return path.resolve(p).replace(/[\\/]+$/, '').toLowerCase()
+}
+
+function isPathEqualOrNested(baseDir: string, candidate: string): boolean {
+  const base = normalizeAbsPathForCompare(baseDir)
+  const target = normalizeAbsPathForCompare(candidate)
+  if (base === target) return true
+  return target.startsWith(`${base}${path.sep}`.toLowerCase())
+}
+
 /** Desktop-only diagnostic rows */
 function buildDesktopChecks(deps: {
-  readOpenClawConfig: () => { gateway?: { port?: number } }
+  readOpenClawConfig: () => any
   readShellConfig: () => { lastGatewayPort?: number }
   gatewayStatus: () => { running: boolean; status: string }
 }): DiagnosticItem[] {
@@ -169,12 +180,36 @@ function buildDesktopChecks(deps: {
     })
   }
 
+  const controlUiRoot = openclaw?.gateway?.controlUi?.root
+  const gatewayMode = openclaw?.gateway?.mode
+  if (typeof controlUiRoot === 'string' && controlUiRoot.trim() && gatewayMode !== 'remote') {
+    const bundledControlUiDir = path.join(getBundledOpenClawDir(), 'dist', 'control-ui')
+    const rootRaw = controlUiRoot.trim()
+    let rootDir = ''
+    try {
+      const abs = path.resolve(rootRaw)
+      const st = fs.statSync(abs)
+      rootDir = st.isFile() && abs.toLowerCase().endsWith('.html') ? path.dirname(abs) : abs
+    } catch {
+      rootDir = ''
+    }
+    if (!rootDir || !isPathEqualOrNested(bundledControlUiDir, rootDir)) {
+      items.push({
+        id: 'desktop-control-ui-root',
+        level: 'warning',
+        message: `gateway.controlUi.root points outside bundled Control UI (${controlUiRoot})`,
+        fix: 'Remove gateway.controlUi.root from openclaw.json and restart Gateway.',
+        source: 'desktop',
+      })
+    }
+  }
+
   return items
 }
 
 /** Full diagnostics → DiagnosticReport */
 export async function runDiagnostics(deps: {
-  readOpenClawConfig: () => { gateway?: { port?: number } }
+  readOpenClawConfig: () => any
   readShellConfig: () => { lastGatewayPort?: number }
   gatewayStatus: () => { running: boolean; status: string }
 }): Promise<DiagnosticReport> {

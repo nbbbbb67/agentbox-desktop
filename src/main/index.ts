@@ -141,7 +141,11 @@ app.whenReady().then(() => {
   })
   let loggedGatewayTokenPatch = false
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    if (details.resourceType !== 'webSocket') {
+    if (
+      details.resourceType !== 'webSocket' &&
+      details.resourceType !== 'subFrame' &&
+      details.resourceType !== 'mainFrame'
+    ) {
       callback({})
       return
     }
@@ -154,7 +158,9 @@ app.whenReady().then(() => {
     if (redirectURL) {
       if (!loggedGatewayTokenPatch) {
         loggedGatewayTokenPatch = true
-        logInfo(`[OpenClaw] Patched gateway websocket request with auth token: ${details.url}`)
+        logInfo(
+          `[OpenClaw] Patched gateway request with auth token (${details.resourceType}): ${details.url}`,
+        )
       }
       callback({ redirectURL })
       return

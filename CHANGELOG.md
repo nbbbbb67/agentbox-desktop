@@ -2,6 +2,17 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.2.14] - 2026-03-25
+
+### Fixed
+
+- **Local gateway Control UI root:** In non-remote mode, strip `gateway.controlUi.root` when it points outside the bundled `dist/control-ui`, so stale custom paths from older installs no longer load incompatible UI (black page).
+- **Gateway auth token injection:** Apply the gateway token redirect patch to `mainFrame` and `subFrame` requests as well as WebSockets, so embedded/iframed Control UI loads authenticated resources correctly.
+
+### Changed
+
+- **Diagnostics:** Doctor adds a desktop warning when `gateway.controlUi.root` is set to a path outside the bundled Control UI (local gateway mode).
+
 ## [0.2.13] - 2026-03-24
 
 ### Fixed

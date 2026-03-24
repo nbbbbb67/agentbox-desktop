@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import JSON5 from 'json5'
 import type { OpenClawConfig } from '../../shared/types.js'
-import { getUserDataDir } from '../utils/paths.js'
+import { getBundledOpenClawDir, getUserDataDir } from '../utils/paths.js'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
 
 function getOpenClawConfigPath(): string {
@@ -198,6 +198,17 @@ function isUsableControlUiBundleDir(dir: string): boolean {
   }
 }
 
+function normalizeAbsPathForCompare(p: string): string {
+  return path.resolve(p).replace(/[\\/]+$/, '').toLowerCase()
+}
+
+function isPathEqualOrNested(baseDir: string, candidate: string): boolean {
+  const base = normalizeAbsPathForCompare(baseDir)
+  const target = normalizeAbsPathForCompare(candidate)
+  if (base === target) return true
+  return target.startsWith(`${base}${path.sep}`.toLowerCase())
+}
+
 /**
  * Remove gateway.controlUi.root when it does not point at a built Control UI (broken embed + black browser tab).
  */
@@ -219,6 +230,19 @@ function migrateInvalidGatewayControlUiRoot(config: OpenClawConfig): { config: O
   }
 
   if (dir && isUsableControlUiBundleDir(dir)) {
+    // Desktop local mode should serve the bundled Control UI; stale custom roots from older installs
+    // can be "valid" files but incompatible with current gateway/auth behavior and render as a black page.
+    if (gw.mode !== 'remote') {
+      const bundledControlUiDir = path.join(getBundledOpenClawDir(), 'dist', 'control-ui')
+      if (!isPathEqualOrNested(bundledControlUiDir, dir)) {
+        const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+        const ng = next.gateway?.controlUi as Record<string, unknown> | undefined
+        if (ng && typeof ng === 'object' && !Array.isArray(ng)) {
+          delete ng.root
+        }
+        return { config: next, changed: true }
+      }
+    }
     return { config, changed: false }
   }
 
@@ -272,7 +296,7 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedControlUiRoot.changed) {
             console.info(
-              '[config] Removed invalid gateway.controlUi.root in openclaw.json (use bundled Control UI auto-detection)',
+              '[config] Removed non-bundled/invalid gateway.controlUi.root in openclaw.json (use bundled Control UI auto-detection)',
             )
           }
           if (migratedControlUi.changed) {
