@@ -12,10 +12,29 @@
  * so the UI runs inside Electron without changing upstream OpenClaw sources.
  */
 
-import { mkdir, rm, cp, writeFile, readdir, access } from 'node:fs/promises'
-import { join } from 'node:path'
-import { execFileSync, execSync } from 'node:child_process'
+import { createWriteStream } from 'node:fs'
+import {
+  mkdir,
+  rm,
+  cp,
+  writeFile,
+  readdir,
+  access,
+  unlink,
+  stat,
+} from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { execFile, execFileSync, execSync } from 'node:child_process'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
 import { transpileControlUiForElectronEmbedded } from './lib/transpile-control-ui-for-electron.ts'
+import { applyOpenClawUiLitDecoratorCompatPatches } from './lib/patch-openclaw-ui-lit-decorators.ts'
+
+/** Written after GitHub UI build so cached installs can detect pre-npm / legacy bundles. */
+export const CONTROL_UI_ELECTRON_LIT_MARKER = '.electron-lit-compat-v1'
 
 const GITHUB_REPO = 'openclaw/openclaw'
 
@@ -38,6 +57,89 @@ function tarballUrlForTag(tag: string): string {
   return `https://codeload.github.com/${GITHUB_REPO}/tar.gz/${tag}`
 }
 
+/** Full URL override (e.g. mirror). Must be the same tarball as the tag. */
+function resolveTarballUrl(tag: string): string {
+  const override = process.env.OPENCLAW_SOURCE_TARBALL_URL?.trim()
+  if (override) {
+    console.log('  [control-ui] using OPENCLAW_SOURCE_TARBALL_URL for source tarball')
+    return override
+  }
+  return tarballUrlForTag(tag)
+}
+
+function tarballFetchRetries(): number {
+  const n = Number(process.env.OPENCLAW_TARBALL_FETCH_RETRIES ?? '5')
+  return Number.isFinite(n) && n >= 1 ? Math.min(20, Math.floor(n)) : 5
+}
+
+function tarballFetchTimeoutMs(): number {
+  const n = Number(process.env.OPENCLAW_TARBALL_FETCH_TIMEOUT_MS ?? String(30 * 60 * 1000))
+  return Number.isFinite(n) && n >= 60_000 ? Math.min(2 * 60 * 60 * 1000, Math.floor(n)) : 30 * 60 * 1000
+}
+
+function curlOnPath(): boolean {
+  try {
+    execFileSync('curl', ['--version'], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Node fetch (Undici) often fails immediately with "terminated" on Windows toward codeload.github.com.
+ * Prefer curl when available unless OPENCLAW_TARBALL_USE_FETCH=1.
+ */
+function tarballDownloadBackend(): 'curl' | 'fetch' {
+  if (process.env.OPENCLAW_TARBALL_USE_FETCH === '1') {
+    return 'fetch'
+  }
+  if (process.env.OPENCLAW_TARBALL_USE_CURL === '1') {
+    return 'curl'
+  }
+  if (process.platform === 'win32' && curlOnPath()) {
+    return 'curl'
+  }
+  return 'fetch'
+}
+
+async function downloadTarballWithCurl(url: string, dest: string, timeoutMs: number): Promise<void> {
+  const out = resolve(dest)
+  const maxTimeSec = Math.max(60, Math.ceil(timeoutMs / 1000))
+  await unlink(out).catch(() => {})
+  try {
+    await execFileAsync(
+      'curl',
+      [
+        '-fL',
+        '--retry',
+        '3',
+        '--retry-delay',
+        '2',
+        '--connect-timeout',
+        '120',
+        '--max-time',
+        String(maxTimeSec),
+        '-A',
+        'openclaw-desktop-bundle/ensure-control-ui',
+        '-o',
+        out,
+        url,
+      ],
+      { maxBuffer: 4 * 1024 * 1024 },
+    )
+  } catch (err) {
+    await unlink(out).catch(() => {})
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(`curl: ${msg}`)
+  }
+  const st = await stat(out)
+  if (st.size < 10_000) {
+    await unlink(out).catch(() => {})
+    throw new Error(`curl: downloaded file too small (${st.size} bytes)`)
+  }
+}
+
 async function findExtractedRepoRoot(extractParent: string): Promise<string> {
   const names = await readdir(extractParent, { withFileTypes: true })
   for (const ent of names) {
@@ -54,16 +156,86 @@ async function findExtractedRepoRoot(extractParent: string): Promise<string> {
   )
 }
 
-async function downloadToFile(url: string, dest: string): Promise<void> {
-  const res = await fetch(url, {
-    redirect: 'follow',
-    headers: { 'User-Agent': 'openclaw-desktop-bundle/ensure-control-ui' },
-  })
-  if (!res.ok) {
-    throw new Error(`Failed to download ${url}: HTTP ${res.status} ${res.statusText}`)
+async function downloadTarballToFileOnce(url: string, dest: string, timeoutMs: number): Promise<void> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: ac.signal,
+      headers: { 'User-Agent': 'openclaw-desktop-bundle/ensure-control-ui' },
+    })
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`)
+    }
+    if (!res.body) {
+      throw new Error('response has no body')
+    }
+    const nodeReadable = Readable.fromWeb(res.body as import('node:stream/web').ReadableStream)
+    await pipeline(nodeReadable, createWriteStream(dest))
+  } catch (err) {
+    await unlink(dest).catch(() => {})
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`download timed out after ${Math.round(timeoutMs / 1000)}s (${url})`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
   }
-  const buf = Buffer.from(await res.arrayBuffer())
-  await writeFile(dest, buf)
+}
+
+/**
+ * Stream tarball to disk. On Windows defaults to curl (avoids Undici "terminated"); else Node fetch.
+ */
+async function downloadToFile(url: string, dest: string): Promise<void> {
+  const attempts = tarballFetchRetries()
+  const timeoutMs = tarballFetchTimeoutMs()
+  let backend = tarballDownloadBackend()
+  if (backend === 'curl' && !curlOnPath()) {
+    console.warn('  [warn] curl not found on PATH — falling back to Node fetch')
+    backend = 'fetch'
+  }
+  if (backend === 'curl') {
+    console.log('  [control-ui] using curl for tarball download (set OPENCLAW_TARBALL_USE_FETCH=1 to force Node fetch)')
+  }
+  let lastErr: unknown
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      if (backend === 'curl') {
+        await downloadTarballWithCurl(url, dest, timeoutMs)
+      } else {
+        await downloadTarballToFileOnce(url, dest, timeoutMs)
+      }
+      const st = await stat(dest)
+      if (st.size < 10_000) {
+        throw new Error(`downloaded file too small (${st.size} bytes)`)
+      }
+      return
+    } catch (e) {
+      lastErr = e
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`  [warn] tarball download attempt ${i}/${attempts} failed: ${msg}`)
+      if (
+        backend === 'fetch' &&
+        i === 1 &&
+        (msg === 'terminated' || msg.includes('terminated')) &&
+        curlOnPath()
+      ) {
+        console.warn('  [warn] switching to curl after fetch "terminated"')
+        backend = 'curl'
+      }
+      if (i < attempts) {
+        const backoff = Math.min(20_000, 2000 * 2 ** (i - 1))
+        await new Promise((r) => setTimeout(r, backoff))
+      }
+    }
+  }
+  const hint =
+    'Check network/VPN/proxy, or set OPENCLAW_SOURCE_TARBALL_URL to a mirror of the same tag tarball. ' +
+    'On Windows, curl is used by default (OPENCLAW_TARBALL_USE_FETCH=1 to force Node fetch). ' +
+    'Optional: OPENCLAW_TARBALL_FETCH_RETRIES, OPENCLAW_TARBALL_FETCH_TIMEOUT_MS.'
+  const last = lastErr instanceof Error ? lastErr.message : String(lastErr)
+  throw new Error(`Failed to download OpenClaw sources after ${attempts} attempts (${last}). ${hint}`)
 }
 
 /**
@@ -75,8 +247,8 @@ export async function downloadAndBuildOpenClawControlUiAt(
   npmPackageVersion: string,
 ): Promise<void> {
   const tag = gitTagForNpmVersion(npmPackageVersion)
-  const url = tarballUrlForTag(tag)
-  console.log(`  [control-ui] fetching ${tag} sources from GitHub...`)
+  const url = resolveTarballUrl(tag)
+  console.log(`  [control-ui] fetching ${tag} sources (${url.split('/').slice(0, 3).join('/')}/...)...`)
 
   const parentTmp = join(openclawRoot, '..', '_openclaw_control_ui_tmp')
   await rm(parentTmp, { recursive: true, force: true })
@@ -114,6 +286,8 @@ export async function downloadAndBuildOpenClawControlUiAt(
     await mkdir(scriptDestDir, { recursive: true })
     await cp(scriptSrc, scriptDest)
 
+    await applyOpenClawUiLitDecoratorCompatPatches(uiDest)
+
     console.log('  [control-ui] npm install in ui/ (Vite + deps)...')
     execSync('npm install --no-audit --no-fund', {
       cwd: uiDest,
@@ -129,6 +303,8 @@ export async function downloadAndBuildOpenClawControlUiAt(
 
     const controlUiDist = join(openclawRoot, 'dist', 'control-ui')
     await transpileControlUiForElectronEmbedded(controlUiDist)
+
+    await writeFile(join(controlUiDist, CONTROL_UI_ELECTRON_LIT_MARKER), '1\n', 'utf8')
 
     const indexHtml = join(openclawRoot, 'dist', 'control-ui', 'index.html')
     if (!(await fileExists(indexHtml))) {
@@ -167,13 +343,21 @@ export async function ensureOpenClawControlUiBuilt(
   openclawDir: string,
   npmPackageVersion: string,
 ): Promise<void> {
-  const indexHtml = join(openclawDir, 'dist', 'control-ui', 'index.html')
+  const controlUiDist = join(openclawDir, 'dist', 'control-ui')
+  const indexHtml = join(controlUiDist, 'index.html')
+  const markerPath = join(controlUiDist, CONTROL_UI_ELECTRON_LIT_MARKER)
   if (await fileExists(indexHtml)) {
-    console.log('  [control-ui] dist/control-ui already present — skip')
-    return
+    if (await fileExists(markerPath)) {
+      console.log('  [control-ui] dist/control-ui already present (Electron Lit compat) — skip')
+      return
+    }
+    console.log(
+      '  [control-ui] dist/control-ui present but missing Electron Lit compat marker — rebuilding from GitHub...',
+    )
+    await rm(controlUiDist, { recursive: true, force: true })
   }
 
-  console.log(`  [control-ui] npm package has no static UI; building for ${npmPackageVersion}...`)
+  console.log(`  [control-ui] building Control UI from GitHub sources for ${npmPackageVersion}...`)
   await downloadAndBuildOpenClawControlUiAt(openclawDir, npmPackageVersion)
 
   console.log('  [control-ui] removing ui/ sources and dev install from bundle...')

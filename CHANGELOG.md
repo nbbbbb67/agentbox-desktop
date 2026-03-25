@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.2.22] - 2026-03-25
+
+### Fixed
+
+- **Control UI (Lit field decorators in Electron):** Before building OpenClaw `ui/` from GitHub sources, apply desktop-only Vite/tsconfig patches so Lit `@property` / `@state` emit legacy decorator semantics Chromium in Electron accepts; remove any prepackaged npm `dist/control-ui` so the bundle is always rebuilt with that config. Track installs with `.electron-lit-compat-v1` and rebuild when the marker is missing (avoids `Unsupported decorator location: field` at runtime).
+
 ## [0.2.21] - 2026-03-25
 
 ### Fixed

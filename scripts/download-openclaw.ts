@@ -16,7 +16,10 @@ import {
 } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
-import { ensureOpenClawControlUiBuilt } from './ensure-openclaw-control-ui.ts'
+import {
+  ensureOpenClawControlUiBuilt,
+  CONTROL_UI_ELECTRON_LIT_MARKER,
+} from './ensure-openclaw-control-ui.ts'
 
 /** Fallback when package.json has no `openclawBundleVersion` (discouraged — pin in package.json). */
 const DEFAULT_VERSION = 'latest'
@@ -152,6 +155,7 @@ async function main(): Promise<void> {
   // Idempotent: skip if already installed with matching version (+ commander + Control UI)
   const markerPath = join(OPENCLAW_DIR, VERSION_MARKER)
   const controlUiIndex = join(OPENCLAW_DIR, 'dist', 'control-ui', 'index.html')
+  const litCompatMarker = join(OPENCLAW_DIR, 'dist', 'control-ui', CONTROL_UI_ELECTRON_LIT_MARKER)
   if (await fileExists(markerPath)) {
     const installed = (await readFile(markerPath, 'utf8')).trim()
     if (installed === version) {
@@ -166,6 +170,22 @@ async function main(): Promise<void> {
       } else {
         const commanderMismatch = await needsCommanderFix(OPENCLAW_DIR)
         const hasControlUi = await fileExists(controlUiIndex)
+        const hasLitCompat = await fileExists(litCompatMarker)
+        if (!commanderMismatch && hasControlUi && !hasLitCompat) {
+          if (skipControlUiBuild()) {
+            console.log(
+              '  [info] dist/control-ui lacks Electron Lit compat marker — clearing for CI artifact merge',
+            )
+            await stripControlUiForCiArtifactMerge()
+            return
+          }
+          console.log(
+            '  [info] dist/control-ui lacks Electron Lit compat marker — rebuilding from GitHub...',
+          )
+          await rm(CONTROL_UI_DIST, { recursive: true, force: true })
+          await ensureOpenClawControlUiBuilt(OPENCLAW_DIR, version)
+          return
+        }
         if (!commanderMismatch && hasControlUi) {
           if (skipControlUiBuild()) {
             await stripControlUiForCiArtifactMerge()
@@ -315,6 +335,17 @@ async function main(): Promise<void> {
     throw new Error('Required OpenClaw build output missing: dist/entry.(m)js')
   }
 
+  // npm ships a browser-targeted Control UI (Lit standard decorators on fields → runtime throw in Electron).
+  if (!skipControlUiBuild()) {
+    const npmControlUi = join(OPENCLAW_DIR, 'dist', 'control-ui')
+    if (await fileExists(join(npmControlUi, 'index.html'))) {
+      await rm(npmControlUi, { recursive: true, force: true })
+      console.log(
+        '  [control-ui] removed prepackaged dist/control-ui from npm (rebuild with legacy Lit decorator emit for Electron)',
+      )
+    }
+  }
+
   if (skipControlUiBuild()) {
     await stripControlUiForCiArtifactMerge()
     console.log(
@@ -328,6 +359,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`\n  FAIL: download-openclaw: ${err.message || err}\n`)
+  const msg = err instanceof Error ? err.message : String(err)
+  const cause =
+    err instanceof Error && err.cause instanceof Error ? `\n  Caused by: ${err.cause.message}` : ''
+  console.error(`\n  FAIL: download-openclaw: ${msg}${cause}\n`)
   process.exit(1)
 })
