@@ -171,24 +171,37 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
     }
     setControlUiOperatorReady(false)
     let cancelled = false
+    let probeInFlight = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    const clearPoll = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
     const probe = async () => {
+      if (probeInFlight) return
+      probeInFlight = true
       try {
         await window.electronAPI.gatewayProbeOperator({ port: gatewayPort })
         if (!cancelled) {
           setControlUiOperatorReady(true)
           clearTimeoutTimer()
+          clearPoll()
         }
       } catch {
         // Gateway WS/session not ready yet — keep startup loading UI.
+      } finally {
+        probeInFlight = false
       }
     }
     void probe()
-    const interval = setInterval(() => {
+    intervalId = setInterval(() => {
       void probe()
-    }, 900)
+    }, 1000)
     return () => {
       cancelled = true
-      clearInterval(interval)
+      clearPoll()
     }
   }, [gatewayPort, controlUrl, controlUiReloadKey, gatewayView, clearTimeoutTimer])
 

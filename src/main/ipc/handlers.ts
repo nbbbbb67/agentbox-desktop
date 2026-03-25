@@ -255,7 +255,13 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
           port = p
         }
       }
-      const client = await createGatewayRpcClientFromConfig({ port })
+      // One quick attempt per invoke: renderer polls on an interval — avoid stacking retries
+      // (default maxRetries × long backoff would overlap the next tick and spam the gateway).
+      const client = await createGatewayRpcClientFromConfig({
+        port,
+        maxRetries: 0,
+        timeoutMs: 12_000,
+      })
       try {
         await client.connect()
       } finally {
