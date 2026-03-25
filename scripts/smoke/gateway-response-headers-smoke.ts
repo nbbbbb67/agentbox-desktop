@@ -88,6 +88,28 @@ function testHeaderPatchFallbacks(): void {
   assert.equal(untouched, null)
 }
 
+/** Control UI chunks must not receive a synthetic CSP (was applied to all loopback responses). */
+function testScriptResponseSkipsSyntheticCsp(): void {
+  const noChange = patchGatewayResponseHeaders(
+    'http://127.0.0.1:8080/assets/index-B.js',
+    { 'Content-Type': ['application/javascript'], Server: ['gw'] },
+    { resourceType: 'script' },
+  )
+  assert.equal(noChange, null)
+
+  const stripXfoOnly = patchGatewayResponseHeaders(
+    'http://127.0.0.1:8080/assets/index-B.js',
+    {
+      'X-Frame-Options': ['DENY'],
+      'Content-Type': ['application/javascript'],
+    },
+    { resourceType: 'script' },
+  )
+  assert.ok(stripXfoOnly)
+  assert.equal(stripXfoOnly['X-Frame-Options'], undefined)
+  assert.equal(stripXfoOnly['Content-Security-Policy'], undefined)
+}
+
 function testGatewayRequestTokenRewrite(): void {
   const rewritten = rewriteGatewayRequestUrlWithToken('ws://127.0.0.1:18789/ws?client=desktop', {
     port: 18789,
@@ -121,6 +143,7 @@ function main(): void {
     ['mitigate default-src none for embed', testMitigateDefaultSrcNone],
     ['header patch for loopback', testHeaderPatchForLoopbackResponse],
     ['header patch fallbacks', testHeaderPatchFallbacks],
+    ['script response skips synthetic CSP', testScriptResponseSkipsSyntheticCsp],
     ['gateway request token rewrite', testGatewayRequestTokenRewrite],
   ]
 

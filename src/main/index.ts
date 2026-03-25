@@ -128,7 +128,9 @@ app.whenReady().then(() => {
   // only for Gateway loopback responses so the Shell can embed the Control UI.
   let loggedGatewayHeaderPatch = false
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const patchedHeaders = patchGatewayResponseHeaders(details.url, details.responseHeaders)
+    const patchedHeaders = patchGatewayResponseHeaders(details.url, details.responseHeaders, {
+      resourceType: details.resourceType,
+    })
     if (patchedHeaders) {
       if (!loggedGatewayHeaderPatch && details.resourceType === 'subFrame') {
         loggedGatewayHeaderPatch = true

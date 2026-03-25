@@ -2,6 +2,16 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.2.20] - 2026-03-25
+
+### Changed
+
+- **Electron:** Upgrade to **41.x** (Chromium **146**) so the embedded browser can parse modern gateway Control UI bundles that rely on current JS syntax (e.g. class decorators), closer to system Chrome.
+
+### Fixed
+
+- **Gateway response headers:** Only apply CSP / `frame-ancestors` relaxation on `mainFrame` / `subFrame` responses; do not inject synthetic CSP on `script` and other subresource types (avoids breaking JS module loads).
+
 ## [0.2.18] - 2026-03-25
 
 ### Changed

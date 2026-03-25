@@ -7,6 +7,21 @@ export const RELAXED_GATEWAY_FRAME_ANCESTORS =
 export type GatewayResponseHeadersInput = Record<string, string[] | string | undefined>
 export type GatewayResponseHeaders = Record<string, string[]>
 
+/** Only HTML navigations need CSP / frame-ancestors fixes; never inject CSP on script/stylesheet/etc. */
+const GATEWAY_CSP_PATCH_RESOURCE_TYPES = new Set(['mainFrame', 'subFrame'])
+
+export type PatchGatewayResponseOptions = {
+  /** Electron webRequest resource type (e.g. script, subFrame). */
+  resourceType?: string
+}
+
+export function shouldPatchGatewayCspForResource(resourceType: string | undefined): boolean {
+  if (resourceType == null || resourceType === '') {
+    return true
+  }
+  return GATEWAY_CSP_PATCH_RESOURCE_TYPES.has(resourceType)
+}
+
 export function isLoopbackGatewayResponseUrl(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl)
@@ -78,6 +93,7 @@ function polishGatewayCspForDesktopEmbed(csp: string): string {
 export function patchGatewayResponseHeaders(
   rawUrl: string,
   responseHeaders: GatewayResponseHeadersInput | undefined,
+  options?: PatchGatewayResponseOptions,
 ): GatewayResponseHeaders | null {
   if (!isLoopbackGatewayResponseUrl(rawUrl)) {
     return null
@@ -93,13 +109,19 @@ export function patchGatewayResponseHeaders(
   }
   const headerKeys = Object.keys(headers)
 
-  for (const key of headerKeys) {
+  let strippedXFrameOptions = false
+  for (const key of [...headerKeys]) {
     if (key.toLowerCase() === 'x-frame-options') {
       delete headers[key]
+      strippedXFrameOptions = true
     }
   }
 
-  const cspKey = headerKeys.find((key) => key.toLowerCase() === 'content-security-policy')
+  if (!shouldPatchGatewayCspForResource(options?.resourceType)) {
+    return strippedXFrameOptions ? headers : null
+  }
+
+  const cspKey = Object.keys(headers).find((key) => key.toLowerCase() === 'content-security-policy')
   if (cspKey) {
     const cspRaw = headers[cspKey]
     if (Array.isArray(cspRaw)) {
