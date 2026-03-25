@@ -2,6 +2,17 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.2.17] - 2026-03-25
+
+### Added
+
+- **Pinned OpenClaw bundle:** Root `package.json` field `openclawBundleVersion`; `download-openclaw` and CI Control UI build read it first (override via `OPENCLAW_DESKTOP_BUNDLE_VERSION` or CLI), reducing npm `latest` drift between jobs.
+- **`verify-packaged-win`:** After `electron-builder`, validates `app.asar` / `bundle-manifest.json` / bundled OpenClaw / Control UI asset refs in `win-unpacked` so mixed artifacts fail the build.
+
+### Documentation
+
+- **`INSTALLER_BLACKSCREEN_POSTMORTEM.zh-CN.md`:** Release hardening section updated to reflect implemented checks.
+
 ## [0.2.16] - 2026-03-25
 
 ### Added
