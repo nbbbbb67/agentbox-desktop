@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Match release.yml: pin-only checks, no npm `openclaw@latest` drift warnings in CI logs
+  OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
+
 jobs:
   verify:
     name: Lint, type-check, build

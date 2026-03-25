@@ -30,6 +30,22 @@ function skipControlUiBuild(): boolean {
   return process.env.OPENCLAW_SKIP_CONTROL_UI_BUILD === '1'
 }
 
+const CONTROL_UI_DIST = join(OPENCLAW_DIR, 'dist', 'control-ui')
+
+/**
+ * CI merges Linux-built `dist/control-ui` via download-artifact. That extract overwrites same paths but
+ * leaves orphan `assets/index-*.js` from npm or prior runs → index.html can reference a new hash while an
+ * old chunk is missing or a stale chunk collides, causing Uncaught SyntaxError in the Control UI bundle.
+ */
+async function stripControlUiForCiArtifactMerge(): Promise<void> {
+  if (!skipControlUiBuild()) return
+  if (!(await fileExists(CONTROL_UI_DIST))) return
+  await rm(CONTROL_UI_DIST, { recursive: true, force: true })
+  console.log(
+    '  [ci-merge] removed dist/control-ui (npm or stale); only the Linux artifact should populate this tree.',
+  )
+}
+
 async function fileExists(p: string): Promise<boolean> {
   try {
     await access(p)
@@ -151,6 +167,13 @@ async function main(): Promise<void> {
         const commanderMismatch = await needsCommanderFix(OPENCLAW_DIR)
         const hasControlUi = await fileExists(controlUiIndex)
         if (!commanderMismatch && hasControlUi) {
+          if (skipControlUiBuild()) {
+            await stripControlUiForCiArtifactMerge()
+            console.log(
+              `  [skip] OpenClaw ${version} core present — dist/control-ui cleared for Linux artifact merge`,
+            )
+            return
+          }
           console.log(
             `  [skip] OpenClaw ${version} already present at ${OPENCLAW_DIR}`,
           )
@@ -293,6 +316,7 @@ async function main(): Promise<void> {
   }
 
   if (skipControlUiBuild()) {
+    await stripControlUiForCiArtifactMerge()
     console.log(
       '  [skip] Control UI build skipped (OPENCLAW_SKIP_CONTROL_UI_BUILD=1); supply dist/control-ui before prepare-bundle',
     )

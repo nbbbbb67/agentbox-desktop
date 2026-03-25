@@ -151,7 +151,11 @@ app.whenReady().then(() => {
     }
 
     const cfg = readOpenClawConfig()
-    const port = cfg?.gateway?.port ?? DEFAULT_GATEWAY_PORT
+    const cfgPort = cfg?.gateway?.port ?? DEFAULT_GATEWAY_PORT
+    const gwStatus = gatewayManager.getStatus()
+    // Use the port the desktop-managed gateway is actually bound to; config alone can drift (e.g. after conflict handling).
+    const port =
+      gwStatus.status === 'running' || gwStatus.status === 'starting' ? gwStatus.port : cfgPort
     const token = cfg?.gateway?.auth?.token
     const redirectURL = rewriteGatewayRequestUrlWithToken(details.url, { port, token })
 

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "openclawBundleVersion": "2026.3.23-2",
   "description": "Community-maintained Windows desktop app and installer for OpenClaw.",
   "type": "module",
@@ -22,6 +22,8 @@
     "verify-packaged-win": "tsx scripts/verify-packaged-win.ts",
     "verify-native-modules": "tsx scripts/verify-native-modules.ts",
     "clean-resources": "tsx scripts/clean-resources.ts",
+    "clean-build": "tsx scripts/clean-build.ts",
+    "clean-all": "pnpm run clean-build && pnpm run clean-resources",
     "generate-resources": "node scripts/generate-resources.mjs",
     "smoke:csp": "tsx scripts/smoke/gateway-response-headers-smoke.ts",
     "smoke:gateway": "electron scripts/smoke/process-manager-electron-runner.cjs",

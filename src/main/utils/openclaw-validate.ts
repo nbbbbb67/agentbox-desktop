@@ -48,6 +48,43 @@ function resolveControlUiRef(controlUiRoot: string, ref: string): string {
   return path.join(controlUiRoot, s.replace(/^\.\//, ''))
 }
 
+/**
+ * Catches mixed installers where index.html references a .js path but the file is HTML, UTF-16, or truncated garbage
+ * (runtime symptom: Uncaught SyntaxError: Invalid or unexpected token in index-*.js).
+ */
+function inspectControlUiScriptFile(absPath: string): string | null {
+  let buf: Buffer
+  try {
+    buf = fs.readFileSync(absPath)
+  } catch {
+    return 'read failed'
+  }
+  if (buf.length === 0) {
+    return 'empty file'
+  }
+  if (buf[0] === 0 && buf[1] === 0 && buf[2] === 0xfe && buf[3] === 0xff) {
+    return 'UTF-32 BE BOM'
+  }
+  if (buf[0] === 0xff && buf[1] === 0xfe) {
+    return 'UTF-16 LE BOM'
+  }
+  if (buf[0] === 0xfe && buf[1] === 0xff) {
+    return 'UTF-16 BE BOM'
+  }
+  if (buf.includes(0)) {
+    return 'contains null bytes'
+  }
+  const head = buf.subarray(0, Math.min(512, buf.length)).toString('utf8').trimStart()
+  const lower = head.slice(0, 32).toLowerCase()
+  if (lower.startsWith('<!doctype') || lower.startsWith('<html') || head.startsWith('<!--')) {
+    return 'HTML or markup (not JavaScript)'
+  }
+  if (head.startsWith('<')) {
+    return 'leading < (likely HTML/error page served as script)'
+  }
+  return null
+}
+
 function validateControlUiBundle(openclawDir: string): string[] {
   const missing: string[] = []
   const controlUiRoot = path.join(openclawDir, 'dist', 'control-ui')
@@ -65,9 +102,20 @@ function validateControlUiBundle(openclawDir: string): string[] {
       return missing
     }
     for (const ref of refs) {
-      const abs = resolveControlUiRef(controlUiRoot, ref)
+      const pathNoQuery = ref.split('?')[0]
+      const lower = pathNoQuery.toLowerCase()
+      const abs = resolveControlUiRef(controlUiRoot, pathNoQuery)
       if (!fileExists(abs)) {
         missing.push(path.relative(openclawDir, abs).replace(/\\/g, '/'))
+        continue
+      }
+      if (lower.endsWith('.js') || lower.endsWith('.mjs')) {
+        const bad = inspectControlUiScriptFile(abs)
+        if (bad) {
+          missing.push(
+            `${path.relative(openclawDir, abs).replace(/\\/g, '/')} (${bad})`,
+          )
+        }
       }
     }
   } catch {

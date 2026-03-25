@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.2.3)'
+        description: '要发布的 Git 标签（须已存在），例如 v0.2.18。必填：工作流会检出该标签再构建，勿留空（留空会误用当前分支导致安装包混拼 / Control UI 黑屏）。'
         required: true
         type: string
 
@@ -19,10 +19,31 @@ env:
   NODE_VERSION_CI: '22.16.0'
   # check-openclaw-versions: validate pin vs bundle-manifest only (no npm registry query / latest warn).
   OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
+  # workflow_dispatch: must checkout the release tag, not the branch that triggered the run (avoids shell/OpenClaw pin vs artifact mismatch → Control UI black screen).
+  CHECKOUT_REF: >-
+    ${{
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.tag != '' &&
+      (startsWith(github.event.inputs.tag, 'refs/') && github.event.inputs.tag || format('refs/tags/{0}', github.event.inputs.tag)) ||
+      github.ref
+    }}
 
 jobs:
+  release_gate:
+    name: Release context check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ github.event.inputs.tag }}" ]; then
+            echo "::error::手动发布时必须在输入框填写 tag（与 Git 标签一致，例如 v0.2.18）。否则会按当前分支打包，极易与 Release 标签错配并导致安装包内 OpenClaw / Control UI 混拼。"
+            exit 1
+          fi
+
   build_control_ui:
     name: Build OpenClaw Control UI (Linux)
+    needs: release_gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,6 +51,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 1
 
       - name: Setup pnpm
@@ -57,9 +79,11 @@ jobs:
           name: openclaw-control-ui-dist
           path: build/_ci_openclaw_control_ui_root/dist/control-ui
           retention-days: 2
+          if-no-files-found: error
 
   verify:
     name: Verify (lint, type-check, build)
+    needs: release_gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -71,7 +95,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
           fetch-tags: true
           submodules: false
@@ -119,12 +143,14 @@ jobs:
       CSC_KEY_PASSWORD: ${{ vars.USE_SIGNPATH == 'true' && '' || secrets.CSC_KEY_PASSWORD }}
       ELECTRON_CACHE: ~\AppData\Local\electron\Cache
       ELECTRON_BUILDER_CACHE: ~\AppData\Local\electron-builder\Cache
+      # Whole job: any script that touches OpenClaw must not leave npm control-ui before Linux artifact merge
+      OPENCLAW_SKIP_CONTROL_UI_BUILD: '1'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
           fetch-tags: true
           submodules: false
@@ -166,16 +192,30 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
           npm_config_fetch_retries: "5"
           npm_config_fetch_retry_mintimeout: "20000"
-          OPENCLAW_SKIP_CONTROL_UI_BUILD: "1"
         run: |
           pnpm run download-node
           pnpm run download-openclaw
 
+      - name: Assert OpenClaw npm bundle matches desktop pin
+        run: pnpm exec tsx scripts/assert-openclaw-pin-aligns.ts
+
+      # download-artifact merges into the path: leaves orphan assets/*.js from npm or self-hosted runners.
+      # download-openclaw strips dist/control-ui when SKIP_CONTROL_UI_BUILD=1; this step is a second line of defense.
+      - name: Ensure empty dist/control-ui before merge
+        shell: pwsh
+        run: |
+          $p = Join-Path "build/openclaw/dist" "control-ui"
+          if (Test-Path -LiteralPath $p) {
+            Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop
+          }
+
+      # run-id: bind to this workflow run only (never pick artifact from another run / fork confusion)
       - name: Merge OpenClaw Control UI (Linux-built)
         uses: actions/download-artifact@v4
         with:
           name: openclaw-control-ui-dist
           path: build/openclaw/dist/control-ui
+          run-id: ${{ github.run_id }}
 
       - name: Assert merged Control UI layout
         shell: pwsh
@@ -185,6 +225,12 @@ jobs:
             Write-Error "Control UI artifact merge failed: missing $idx (check upload/download paths)."
             exit 1
           }
+
+      # Same checks as verify-bundle / verify-packaged-win (esbuild parse) — catch HTML-as-JS or broken merge before prepare-bundle.
+      - name: Verify merged Control UI bundle
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec tsx scripts/verify-merged-control-ui.ts build/openclaw/dist/control-ui
 
       - name: Prepare bundle
         env:
@@ -277,7 +323,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
           fetch-tags: true
           submodules: false
