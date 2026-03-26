@@ -172,6 +172,42 @@ function migrateAuthOrderFullProfileIds(
 }
 
 /**
+ * OpenClaw `extensions/minimax/onboard.ts` sets `authHeader: true` for third-party Anthropic-compatible
+ * APIs (MiniMax, Synthetic, etc.). Without it, gateways can get HTTP 401 from hosts that expect
+ * Bearer-style auth (see upstream issue #29169). Only set when missing; do not override explicit values.
+ */
+function migrateAnthropicThirdPartyAuthHeader(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const providers = config.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+  let changed = false
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const nextProviders = next.models?.providers
+  if (!nextProviders || typeof nextProviders !== 'object') {
+    return { config, changed: false }
+  }
+
+  for (const [, raw] of Object.entries(nextProviders)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const p = raw as Record<string, unknown>
+    if (p.authHeader !== undefined) continue
+    const api = typeof p.api === 'string' ? p.api : ''
+    if (api !== 'anthropic-messages') continue
+    const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl : ''
+    if (!baseUrl.trim()) continue
+    if (baseUrl.includes('api.anthropic.com')) continue
+    p.authHeader = true
+    changed = true
+  }
+
+  if (!changed) return { config, changed: false }
+  return { config: next, changed: true }
+}
+
+/**
  * OpenClaw 2026.1.29+: gateway auth mode `none` removed — gateway must use token or password.
  * Migrate legacy `mode: "none"` using whichever credential field is present.
  */
@@ -331,13 +367,16 @@ export function readOpenClawConfig(): OpenClawConfig {
       cfg = migratedAuthNone.config
       const migratedAuthOrder = migrateAuthOrderFullProfileIds(cfg)
       cfg = migratedAuthOrder.config
+      const migratedAuthHeader = migrateAnthropicThirdPartyAuthHeader(cfg)
+      cfg = migratedAuthHeader.config
       if (
         migratedProviders.changed ||
         migratedFeishu.changed ||
         migratedControlUiRoot.changed ||
         migratedControlUi.changed ||
         migratedAuthNone.changed ||
-        migratedAuthOrder.changed
+        migratedAuthOrder.changed ||
+        migratedAuthHeader.changed
       ) {
         try {
           writeOpenClawConfig(cfg)
@@ -362,6 +401,11 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedAuthOrder.changed) {
             console.info('[config] Normalized auth.order profile ids to full form (provider:name) in openclaw.json')
+          }
+          if (migratedAuthHeader.changed) {
+            console.info(
+              '[config] Set models.providers.*.authHeader=true for third-party anthropic-messages hosts in openclaw.json',
+            )
           }
         } catch (err) {
           console.warn(

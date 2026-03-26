@@ -212,7 +212,10 @@ export interface ModelProviderConfig {
   apiKey?: string
   /** Custom HTTP headers */
   headers?: Record<string, string>
-  /** Whether to send Authorization (false for local proxies like copilot-proxy) */
+  /**
+   * Third-party `anthropic-messages` hosts (MiniMax, Synthetic, Cloudflare gateway, etc.) need `true`
+   * so the gateway matches OpenClaw upstream onboard configs. Use `false` for local proxies (e.g. copilot-proxy).
+   */
   authHeader?: boolean
   models?: Array<Record<string, unknown> & { id: string; name?: string }>
 }

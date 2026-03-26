@@ -48,15 +48,17 @@ If you've been searching for *how to install OpenClaw on Windows*, *how to run O
 ## Quick Start
 
 1. Download the latest installer from [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest)
-2. Run `OpenClaw-Setup-0.3.3.exe`
+2. Run `OpenClaw-Setup-0.3.4.exe`
 3. Finish the setup wizard (provider → channel → gateway)
 4. Launch from Start Menu or Desktop shortcut
 
 **System:** Windows 10/11 x64 · ~350 MB free space · Internet for API calls
 
-## What's New in v0.3.3
+## What's New in v0.3.4
 
-- **MiniMax (401):** Auth profile id for API keys is **`minimax:global`** (same as the wizard and upstream). The LLM API path no longer maps `default` to `minimax:default`; it is normalized to **`minimax:global`**, and existing `minimax:default` entries in `auth-profiles.json` migrate on startup.
+- **MiniMax / Anthropic-compatible 401:** `models.providers.*` now sets **`authHeader: true`** for third-party `anthropic-messages` hosts (same as OpenClaw `extensions/minimax/onboard.ts`). Existing configs are migrated on startup—fixes invalid API key errors when the key is correct but auth headers did not match the host.
+
+Earlier highlights (v0.3.3): `minimax:global` profile id + auth-profiles migration.
 
 Earlier highlights (v0.3.2): Full profile ids for save/migrate/delete; `auth.order` normalization; delete passes `provider`.
 
@@ -124,8 +126,8 @@ OpenClaw Desktop is a **community-maintained Windows distribution** for the Open
 
 | | |
 |---|---|
-| **Release** | `v0.3.3` |
-| **Installer** | `OpenClaw-Setup-0.3.3.exe` |
+| **Release** | `v0.3.4` |
+| **Installer** | `OpenClaw-Setup-0.3.4.exe` |
 | **Platform** | Windows 10/11 x64 |
 | **Includes** | Electron shell, portable Node.js, bundled OpenClaw |
 | **Extras** | SHA-256 checksum, `latest.yml` for in-app updates |
@@ -206,7 +208,7 @@ pnpm run prepare-bundle
 pnpm run package:win   # Output: dist/OpenClaw-Setup-<version>.exe
 ```
 
-**Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.3.23-2** for desktop **v0.3.3**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
+**Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.3.23-2** for desktop **v0.3.4**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
 
 **Related docs:** [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 

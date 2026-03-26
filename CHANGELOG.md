@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.3.4] - 2026-03-26
+
+### Fixed
+
+- **MiniMax / third-party Anthropic HTTP 401:** Aligned with OpenClaw `extensions/minimax/onboard.ts` by setting **`authHeader: true`** on `anthropic-messages` providers that target non-`api.anthropic.com` hosts (MiniMax, Synthetic, OpenCode Zen, Kimi Coding, Cloudflare AI Gateway). Existing `openclaw.json` entries are migrated on load. Custom Anthropic-compatible bases get the same flag when the URL is not Anthropic’s official API.
+
 ## [0.3.3] - 2026-03-26
 
 ### Fixed

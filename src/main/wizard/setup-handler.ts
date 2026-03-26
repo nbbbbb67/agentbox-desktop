@@ -47,6 +47,11 @@ type ProviderSeed = {
   baseUrl: string
   /** OpenClaw `models.providers.*.api`; omit for plugin-native providers (e.g. Google Gemini). */
   api?: string
+  /**
+   * Third-party Anthropic-compatible hosts need `authHeader: true` so the gateway sends the same
+   * auth as upstream `applyMinimaxApiConfig` / OpenClaw issue #29169 (MiniMax 401 without Bearer).
+   */
+  authHeader?: boolean
 }
 
 const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
@@ -79,6 +84,7 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
     providerId: 'opencode',
     baseUrl: 'https://opencode.ai/zen/v1',
     api: 'anthropic-messages',
+    authHeader: true,
   },
   'vercel-ai-gateway': {
     providerId: 'vercel-ai-gateway',
@@ -94,11 +100,13 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
     providerId: 'kimi-coding',
     baseUrl: 'https://api.kimi.com/coding/',
     api: 'anthropic-messages',
+    authHeader: true,
   },
   minimax: {
     providerId: 'minimax',
     baseUrl: 'https://api.minimax.io/anthropic',
     api: 'anthropic-messages',
+    authHeader: true,
   },
   xai: {
     providerId: 'xai',
@@ -124,6 +132,7 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
     providerId: 'synthetic',
     baseUrl: 'https://api.synthetic.new/anthropic',
     api: 'anthropic-messages',
+    authHeader: true,
   },
   venice: {
     providerId: 'venice',
@@ -310,6 +319,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
       ...(config.models.providers['cloudflare-ai-gateway'] ?? {}),
       baseUrl: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/anthropic`,
       api: 'anthropic-messages',
+      authHeader: true,
       ...(state.modelConfig.apiKey.trim() ? { apiKey: state.modelConfig.apiKey.trim() } : {}),
       models: [buildDefaultProviderModel(modelId)],
     }
@@ -400,6 +410,7 @@ function ensureProviderSeedConfig(config: OpenClawConfig, state: WizardState): v
     baseUrl: seed.baseUrl,
     ...(seed.api ? { api: seed.api } : {}),
     ...(apiKey ? { apiKey } : {}),
+    ...(seed.authHeader !== undefined ? { authHeader: seed.authHeader } : {}),
     models: [buildDefaultProviderModel(modelId)],
   }
 }
@@ -478,6 +489,8 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
     const compatibility = state.modelConfig.customCompatibility ?? 'openai'
     const api = compatibility === 'anthropic' ? 'anthropic-messages' : 'openai-completions'
     if (baseUrl) {
+      const thirdPartyAnthropic =
+        compatibility === 'anthropic' && !baseUrl.includes('api.anthropic.com')
       config.models = {
         mode: 'merge',
         providers: {
@@ -485,6 +498,7 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
             baseUrl,
             api,
             apiKey: state.modelConfig.apiKey.trim(),
+            ...(thirdPartyAnthropic ? { authHeader: true } : {}),
             models: [buildDefaultProviderModel(modelId || 'default')],
           },
         },
