@@ -2,6 +2,16 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.4.2] - 2026-03-26
+
+### Fixed
+
+- **MiniMax HTTP 401 `invalid api key`:** MiniMax’s Anthropic-compatible API (`https://api.minimax.io/anthropic`) expects **Anthropic-style `x-api-key`** (official docs: `ANTHROPIC_API_KEY` + Anthropic SDK). The shell had set `authHeader: true` (**Bearer**), which MiniMax rejects even when the key is valid. The MiniMax seed no longer sets Bearer; existing `openclaw.json` entries are migrated to **`authHeader: false`** on load. The blanket third-party `anthropic-messages` migration **excludes** MiniMax; OpenCode Zen, Kimi Coding, Synthetic, Cloudflare AI Gateway, etc. are unchanged.
+
+### Changed
+
+- **Feishu DM pairing notifications:** Replaced the 12s polling loop with **`fs.watch` on `~/.openclaw/credentials`** (debounced) so pairing JSON updates drive notifications; **dedupe by `openId`** and a short throttle when `openId` is missing to avoid repeated toasts when the pairing code rotates.
+
 ## [0.4.1] - 2026-03-26
 
 ### Changed

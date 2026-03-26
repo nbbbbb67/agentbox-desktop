@@ -27,6 +27,7 @@ import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from '
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
 import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
 import { listPendingFeishuPairing } from './pairing/index.js'
+import { watchFeishuPairingCredentialsDir } from './pairing/feishu-pairing-credentials-watcher.js'
 import { resolveTrayLocale, getFeishuPairingNotificationStrings, formatFeishuPairingBody } from './tray/tray-i18n.js'
 import { registerShellFileProtocol, registerShellPrivileges } from './shell-protocol.js'
 
@@ -39,7 +40,7 @@ process.on('uncaughtException', (error) => {
   dialog.showErrorBox('Unexpected Error', error.stack ?? error.message)
 })
 let isQuitting = false
-let feishuPairingNotifyTimer: ReturnType<typeof setInterval> | null = null
+let stopFeishuPairingNotifyWatcher: (() => void) | null = null
 const windowManager = new WindowManager({
   defaultGatewayPort: DEFAULT_GATEWAY_PORT,
   readShellConfig,
@@ -102,9 +103,9 @@ async function cleanupBeforeQuit(): Promise<void> {
   // 5. Stop background update polling
   stopBackgroundUpdateCheck()
 
-  if (feishuPairingNotifyTimer) {
-    clearInterval(feishuPairingNotifyTimer)
-    feishuPairingNotifyTimer = null
+  if (stopFeishuPairingNotifyWatcher) {
+    stopFeishuPairingNotifyWatcher()
+    stopFeishuPairingNotifyWatcher = null
   }
 }
 
@@ -307,14 +308,34 @@ app.whenReady().then(() => {
   trayManager.create()
   trayManager.setGatewayStatus(gatewayManager.getStatus().status)
 
+  /** Pairing codes we already surfaced via system notification (session). */
   const notifiedFeishuPairingCodes = new Set<string>()
-  const pollFeishuPairingNotifications = () => {
+  /**
+   * When the gateway refreshes the pairing challenge frequently, `code` changes while `openId`
+   * stays the same — dedupe by openId so we do not spam duplicate system notifications.
+   */
+  const notifiedFeishuPairingOpenIds = new Set<string>()
+  /** When pending rows have no openId yet, only one notification per interval (rotating code / noisy state). */
+  let lastFeishuPairingNotifyWithoutOpenIdAt = 0
+  const FEISHU_PAIRING_NOTIFY_MIN_INTERVAL_MS = 120_000
+
+  const processFeishuPairingNotifications = () => {
     void listPendingFeishuPairing()
       .then(({ requests }) => {
+        const now = Date.now()
         for (const row of requests) {
           const code = row.code.trim().toUpperCase()
-          if (!code || notifiedFeishuPairingCodes.has(code)) continue
+          if (!code) continue
+          const openId = row.openId?.trim()
+          if (openId) {
+            if (notifiedFeishuPairingOpenIds.has(openId)) continue
+          } else {
+            if (notifiedFeishuPairingCodes.has(code)) continue
+            if (now - lastFeishuPairingNotifyWithoutOpenIdAt < FEISHU_PAIRING_NOTIFY_MIN_INTERVAL_MS) continue
+            lastFeishuPairingNotifyWithoutOpenIdAt = now
+          }
           notifiedFeishuPairingCodes.add(code)
+          if (openId) notifiedFeishuPairingOpenIds.add(openId)
           if (!Notification.isSupported()) continue
           const loc = resolveTrayLocale(readShellConfig)
           const notifCopy = getFeishuPairingNotificationStrings(loc)
@@ -330,8 +351,8 @@ app.whenReady().then(() => {
       })
       .catch(() => {})
   }
-  feishuPairingNotifyTimer = setInterval(pollFeishuPairingNotifications, 12_000)
-  pollFeishuPairingNotifications()
+  processFeishuPairingNotifications()
+  stopFeishuPairingNotifyWatcher = watchFeishuPairingCredentialsDir(processFeishuPairingNotifications)
 
   // 5. Pre-start checks (bundle + config)
   const prestartCheck = runPrestartCheck()

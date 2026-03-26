@@ -54,9 +54,13 @@ If you've been searching for *how to install OpenClaw on Windows*, *how to run O
 
 **System:** Windows 10/11 x64 · ~350 MB free space · Internet for API calls
 
+## Latest: MiniMax `invalid api key` (401)
+
+MiniMax’s Anthropic-compatible base URL (`https://api.minimax.io/anthropic`) expects **Anthropic-style `x-api-key`** ([MiniMax platform docs](https://platform.minimax.io/docs/guides/text-generation): `ANTHROPIC_API_KEY` + Anthropic SDK). Older shell builds set `authHeader: true` (**Bearer**), which MiniMax rejects. Current builds omit Bearer for MiniMax and migrate existing `openclaw.json` to `authHeader: false` on startup. Other third-party `anthropic-messages` hosts (OpenCode Zen, Kimi Coding, Synthetic, Cloudflare AI Gateway, …) may still use `authHeader: true` where required.
+
 ## What's New in v0.3.4
 
-- **MiniMax / Anthropic-compatible 401:** `models.providers.*` now sets **`authHeader: true`** for third-party `anthropic-messages` hosts (same as OpenClaw `extensions/minimax/onboard.ts`). Existing configs are migrated on startup—fixes invalid API key errors when the key is correct but auth headers did not match the host.
+- **Third-party Anthropic-compatible 401 (excluding MiniMax):** `authHeader: true` for hosts that expect Bearer. MiniMax is handled separately (see above).
 
 Earlier highlights (v0.3.3): `minimax:global` profile id + auth-profiles migration.
 

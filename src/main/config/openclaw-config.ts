@@ -171,10 +171,17 @@ function migrateAuthOrderFullProfileIds(
   return { config: next, changed: true }
 }
 
+/** MiniMax Anthropic-compatible hosts use the same credential transport as Anthropic (`x-api-key`), per platform docs (ANTHROPIC_API_KEY + Anthropic SDK). Bearer (`authHeader: true`) yields HTTP 401 invalid api key. */
+function isMinimaxAnthropicProvider(providerId: string, baseUrl: string): boolean {
+  if (providerId === 'minimax') return true
+  const u = baseUrl.toLowerCase()
+  return u.includes('api.minimax.io') || u.includes('minimaxi.com')
+}
+
 /**
- * OpenClaw `extensions/minimax/onboard.ts` sets `authHeader: true` for third-party Anthropic-compatible
- * APIs (MiniMax, Synthetic, etc.). Without it, gateways can get HTTP 401 from hosts that expect
- * Bearer-style auth (see upstream issue #29169). Only set when missing; do not override explicit values.
+ * Third-party Anthropic-compatible APIs that are not Anthropic official often need `authHeader: true`
+ * (Bearer) — e.g. OpenCode Zen, Kimi Coding, Synthetic (see upstream issue #29169).
+ * MiniMax is excluded: it expects Anthropic-style `x-api-key`, not Bearer.
  */
 function migrateAnthropicThirdPartyAuthHeader(
   config: OpenClawConfig,
@@ -190,7 +197,7 @@ function migrateAnthropicThirdPartyAuthHeader(
     return { config, changed: false }
   }
 
-  for (const [, raw] of Object.entries(nextProviders)) {
+  for (const [providerId, raw] of Object.entries(nextProviders)) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
     const p = raw as Record<string, unknown>
     if (p.authHeader !== undefined) continue
@@ -199,7 +206,42 @@ function migrateAnthropicThirdPartyAuthHeader(
     const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl : ''
     if (!baseUrl.trim()) continue
     if (baseUrl.includes('api.anthropic.com')) continue
+    if (isMinimaxAnthropicProvider(providerId, baseUrl)) continue
     p.authHeader = true
+    changed = true
+  }
+
+  if (!changed) return { config, changed: false }
+  return { config: next, changed: true }
+}
+
+/**
+ * Earlier desktop migrations set `authHeader: true` for all third-party anthropic-messages hosts including MiniMax.
+ * MiniMax requires Anthropic-style `x-api-key` (docs: ANTHROPIC_API_KEY + base https://api.minimax.io/anthropic). Flip to false.
+ */
+function migrateMinimaxAuthHeaderToXApiKey(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const providers = config.models?.providers
+  if (!providers || typeof providers !== 'object') {
+    return { config, changed: false }
+  }
+  let changed = false
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  const nextProviders = next.models?.providers
+  if (!nextProviders || typeof nextProviders !== 'object') {
+    return { config, changed: false }
+  }
+
+  for (const [providerId, raw] of Object.entries(nextProviders)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const p = raw as Record<string, unknown>
+    if (p.authHeader !== true) continue
+    const api = typeof p.api === 'string' ? p.api : ''
+    if (api !== 'anthropic-messages') continue
+    const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl : ''
+    if (!isMinimaxAnthropicProvider(providerId, baseUrl)) continue
+    p.authHeader = false
     changed = true
   }
 
@@ -369,6 +411,8 @@ export function readOpenClawConfig(): OpenClawConfig {
       cfg = migratedAuthOrder.config
       const migratedAuthHeader = migrateAnthropicThirdPartyAuthHeader(cfg)
       cfg = migratedAuthHeader.config
+      const migratedMinimaxAuthHeader = migrateMinimaxAuthHeaderToXApiKey(cfg)
+      cfg = migratedMinimaxAuthHeader.config
       if (
         migratedProviders.changed ||
         migratedFeishu.changed ||
@@ -376,7 +420,8 @@ export function readOpenClawConfig(): OpenClawConfig {
         migratedControlUi.changed ||
         migratedAuthNone.changed ||
         migratedAuthOrder.changed ||
-        migratedAuthHeader.changed
+        migratedAuthHeader.changed ||
+        migratedMinimaxAuthHeader.changed
       ) {
         try {
           writeOpenClawConfig(cfg)
@@ -404,7 +449,12 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedAuthHeader.changed) {
             console.info(
-              '[config] Set models.providers.*.authHeader=true for third-party anthropic-messages hosts in openclaw.json',
+              '[config] Set models.providers.*.authHeader=true for third-party anthropic-messages hosts (excluding MiniMax) in openclaw.json',
+            )
+          }
+          if (migratedMinimaxAuthHeader.changed) {
+            console.info(
+              '[config] Set models.providers.minimax.authHeader=false (Anthropic x-api-key) for MiniMax in openclaw.json',
             )
           }
         } catch (err) {

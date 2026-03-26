@@ -54,9 +54,13 @@
 
 **系统要求：** Windows 10/11 x64 · 约 350 MB 可用空间 · 网络连接（用于 API 调用）
 
+## 最新：MiniMax `invalid api key`（401）
+
+MiniMax 的 Anthropic 兼容地址（`https://api.minimax.io/anthropic`）使用与 Anthropic 相同的 **`x-api-key`**（见 [MiniMax 平台文档](https://platform.minimax.io/docs/guides/text-generation)：`ANTHROPIC_API_KEY` + Anthropic SDK）。旧版 Shell 曾为 MiniMax 设置 `authHeader: true`（**Bearer**），会导致密钥正确仍被服务端拒绝。当前版本对 MiniMax 不再使用 Bearer，并在启动时将已有 `openclaw.json` 迁移为 `authHeader: false`。其他第三方 `anthropic-messages` 端点（OpenCode Zen、Kimi Coding、Synthetic、Cloudflare AI Gateway 等）仍按需在适当时机使用 `authHeader: true`。
+
 ## v0.3.4 更新亮点
 
-- **MiniMax / Anthropic 兼容 401：** 与 OpenClaw 上游一致，为第三方 **`anthropic-messages`** 端点设置 **`authHeader: true`**；启动时自动迁移已有 `openclaw.json`。密钥正确但仍报 invalid api key 时多属此类问题。
+- **第三方 Anthropic 兼容 401（不含 MiniMax）：** 对需要 Bearer 的端点设置 `authHeader: true`；MiniMax 单独处理（见上文）。
 
 更早版本（v0.3.3）要点：`minimax:global` 与 auth-profiles 迁移 — 详见 [CHANGELOG.md](CHANGELOG.md)。
 

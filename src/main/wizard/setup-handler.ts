@@ -68,8 +68,8 @@ type ProviderSeed = {
   /** OpenClaw `models.providers.*.api`; omit for plugin-native providers (e.g. Google Gemini). */
   api?: string
   /**
-   * Third-party Anthropic-compatible hosts need `authHeader: true` so the gateway sends the same
-   * auth as upstream `applyMinimaxApiConfig` / OpenClaw issue #29169 (MiniMax 401 without Bearer).
+   * Some third-party Anthropic-compatible hosts need `authHeader: true` (Bearer). MiniMax uses
+   * default Anthropic `x-api-key` — do not set here.
    */
   authHeader?: boolean
 }
@@ -126,7 +126,7 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
     providerId: 'minimax',
     baseUrl: 'https://api.minimax.io/anthropic',
     api: 'anthropic-messages',
-    authHeader: true,
+    /** Omit authHeader (default): MiniMax uses Anthropic-style `x-api-key`; Bearer breaks with 401 invalid api key. */
   },
   xai: {
     providerId: 'xai',

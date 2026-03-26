@@ -213,8 +213,7 @@ export interface ModelProviderConfig {
   /** Custom HTTP headers */
   headers?: Record<string, string>
   /**
-   * Third-party `anthropic-messages` hosts (MiniMax, Synthetic, Cloudflare gateway, etc.) need `true`
-   * so the gateway matches OpenClaw upstream onboard configs. Use `false` for local proxies (e.g. copilot-proxy).
+   * Third-party `anthropic-messages` hosts that expect Bearer credentials (Synthetic, OpenCode Zen, Kimi Coding, Cloudflare gateway, etc.) use `true`. MiniMax (`api.minimax.io`) uses Anthropic-style `x-api-key` — omit or `false`. Use `false` for local proxies (e.g. copilot-proxy).
    */
   authHeader?: boolean
   models?: Array<Record<string, unknown> & { id: string; name?: string }>
