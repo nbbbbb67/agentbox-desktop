@@ -11,6 +11,7 @@ import JSON5 from 'json5'
 import type { OpenClawConfig } from '../../shared/types.js'
 import { getBundledOpenClawDir, getUserDataDir } from '../utils/paths.js'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
+import { normalizeAuthOrderEntry } from '../providers/provider-config.js'
 
 function getOpenClawConfigPath(): string {
   return path.join(getUserDataDir(), OPENCLAW_CONFIG_FILE)
@@ -130,6 +131,43 @@ function migrateDesktopControlUiAllowInsecureAuth(
     ...(typeof ng.controlUi === 'object' && ng.controlUi !== null ? ng.controlUi : {}),
     allowInsecureAuth: true,
   }
+  return { config: next, changed: true }
+}
+
+/**
+ * OpenClaw resolves credentials by auth.order profile ids (e.g. openai:default).
+ * Legacy configs may list shorthand entries (default) or mismatch auth-profiles keys — normalize on load.
+ */
+function migrateAuthOrderFullProfileIds(
+  config: OpenClawConfig,
+): { config: OpenClawConfig; changed: boolean } {
+  const order = config.auth?.order
+  if (!order || typeof order !== 'object' || Array.isArray(order)) {
+    return { config, changed: false }
+  }
+  let changed = false
+  const nextOrder: Record<string, string[]> = {}
+  for (const [providerId, entries] of Object.entries(order)) {
+    if (!Array.isArray(entries)) {
+      nextOrder[providerId] = entries as unknown as string[]
+      continue
+    }
+    const normalized = entries.map((e) => normalizeAuthOrderEntry(providerId, String(e)))
+    if (normalized.length !== entries.length) {
+      changed = true
+    } else {
+      for (let i = 0; i < entries.length; i++) {
+        if (String(entries[i]) !== normalized[i]) {
+          changed = true
+          break
+        }
+      }
+    }
+    nextOrder[providerId] = normalized
+  }
+  if (!changed) return { config, changed: false }
+  const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
+  next.auth = { ...(next.auth ?? {}), order: nextOrder }
   return { config: next, changed: true }
 }
 
@@ -291,12 +329,15 @@ export function readOpenClawConfig(): OpenClawConfig {
       cfg = migratedControlUi.config
       const migratedAuthNone = migrateGatewayAuthModeNoneRemoved(cfg)
       cfg = migratedAuthNone.config
+      const migratedAuthOrder = migrateAuthOrderFullProfileIds(cfg)
+      cfg = migratedAuthOrder.config
       if (
         migratedProviders.changed ||
         migratedFeishu.changed ||
         migratedControlUiRoot.changed ||
         migratedControlUi.changed ||
-        migratedAuthNone.changed
+        migratedAuthNone.changed ||
+        migratedAuthOrder.changed
       ) {
         try {
           writeOpenClawConfig(cfg)
@@ -318,6 +359,9 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedAuthNone.changed) {
             console.info('[config] Migrated gateway.auth.mode from "none" (removed upstream) in openclaw.json')
+          }
+          if (migratedAuthOrder.changed) {
+            console.info('[config] Normalized auth.order profile ids to full form (provider:name) in openclaw.json')
           }
         } catch (err) {
           console.warn(

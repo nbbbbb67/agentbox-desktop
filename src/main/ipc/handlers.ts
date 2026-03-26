@@ -92,6 +92,7 @@ import {
   setModelAliases,
   addProfileToAuthOrder,
   removeProfileFromAuthOrder,
+  normalizeAuthOrderEntry,
 } from '../providers/index.js'
 import { listSkillsWithProxy } from '../skills/index.js'
 import { listModelsWithProxy } from '../models/index.js'
@@ -454,17 +455,20 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
       if (!profileId || !provider) {
         throw new Error('profileId and provider are required')
       }
+      const canonicalProfileId = normalizeAuthOrderEntry(provider, profileId)
       if (credType === 'token') {
         const token = String(raw.token ?? '')
         if (!token) throw new Error('token is required for type: token')
-        saveAuthProfileToken(profileId, provider, token)
+        saveAuthProfileToken(canonicalProfileId, provider, token)
       } else {
-        const apiKey = String(raw.apiKey ?? '')
+        const apiKey = String(raw.apiKey ?? '').trim()
         if (!apiKey) throw new Error('apiKey is required for type: api_key')
-        saveAuthProfile(profileId, provider, apiKey)
+        // Must match OpenClaw auth.order (full ids like openai:default); shorthand "default" alone
+        // would leave credentials under the wrong key while order points at provider:default → HTTP 401.
+        saveAuthProfile(canonicalProfileId, provider, apiKey)
       }
       const config = deps.readOpenClawConfig()
-      const next = addProfileToAuthOrder(config, provider, profileId)
+      const next = addProfileToAuthOrder(config, provider, canonicalProfileId)
       deps.writeOpenClawConfig(next)
     }),
   )
@@ -473,12 +477,24 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     IPC_PROVIDERS_DELETE_PROFILE,
     wrapHandler('PROVIDERS_DELETE_PROFILE', (opts: unknown) => {
       const raw = validatePlainObject(opts, 'deleteProfile opts')
-      const profileId = String(raw.profileId ?? '')
-      if (!profileId) throw new Error('profileId is required')
-      const provider = profileId.includes(':') ? profileId.split(':')[0]! : profileId
-      deleteAuthProfile(profileId)
+      const profileIdRaw = String(raw.profileId ?? '').trim()
+      if (!profileIdRaw) throw new Error('profileId is required')
+      const providerHint = String(raw.provider ?? '').trim()
+      let canonicalId: string
+      let authOrderProviderId: string
+      if (profileIdRaw.includes(':')) {
+        authOrderProviderId = profileIdRaw.split(':')[0]!
+        canonicalId = normalizeAuthOrderEntry(authOrderProviderId, profileIdRaw)
+      } else if (providerHint) {
+        authOrderProviderId = providerHint
+        canonicalId = normalizeAuthOrderEntry(providerHint, profileIdRaw)
+      } else {
+        canonicalId = profileIdRaw
+        authOrderProviderId = profileIdRaw
+      }
+      deleteAuthProfile(canonicalId)
       const config = deps.readOpenClawConfig()
-      const next = removeProfileFromAuthOrder(config, provider, profileId)
+      const next = removeProfileFromAuthOrder(config, authOrderProviderId, canonicalId)
       deps.writeOpenClawConfig(next)
     }),
   )

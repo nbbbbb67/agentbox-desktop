@@ -58,11 +58,12 @@ function loadStore(): AuthProfileStore {
           const store = {
             version: parsed.version ?? AUTH_STORE_VERSION,
             profiles: parsed.profiles,
-          }
+          } as AuthProfileStore
           const agentAuthDir = resolveAgentAuthDir()
           fs.mkdirSync(agentAuthDir, { recursive: true })
-          fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
-          return store as AuthProfileStore
+          const { store: migrated } = migrateShorthandProfileKeys(store)
+          fs.writeFileSync(storePath, JSON.stringify(migrated, null, 2) + '\n', 'utf-8')
+          return migrated
         }
       }
       return { version: AUTH_STORE_VERSION, profiles: {} }
@@ -76,7 +77,11 @@ function loadStore(): AuthProfileStore {
       parsed.profiles &&
       typeof parsed.profiles === 'object'
     ) {
-      return parsed as AuthProfileStore
+      const { store: migrated, changed } = migrateShorthandProfileKeys(parsed as AuthProfileStore)
+      if (changed) {
+        saveStore(migrated)
+      }
+      return migrated
     }
     return { version: AUTH_STORE_VERSION, profiles: {} }
   } catch {
@@ -89,6 +94,30 @@ function saveStore(store: AuthProfileStore): void {
   fs.mkdirSync(agentAuthDir, { recursive: true })
   const storePath = resolveAuthStorePath()
   fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + '\n', 'utf-8')
+}
+
+/**
+ * Keys must match auth.order (e.g. openai:default). Shorthand keys (default) break credential lookup → 401.
+ */
+function migrateShorthandProfileKeys(store: AuthProfileStore): { store: AuthProfileStore; changed: boolean } {
+  const profiles = { ...store.profiles }
+  let changed = false
+  for (const [profileId, cred] of Object.entries(profiles)) {
+    if (profileId.includes(':')) continue
+    const provider = cred.provider
+    if (typeof provider !== 'string' || !provider.trim()) continue
+    const canonical = `${provider}:${profileId}`
+    if (profiles[canonical]) {
+      delete profiles[profileId]
+      changed = true
+      continue
+    }
+    profiles[canonical] = cred
+    delete profiles[profileId]
+    changed = true
+  }
+  if (!changed) return { store, changed: false }
+  return { store: { ...store, profiles }, changed: true }
 }
 
 function hasCredential(cred: AuthProfileCredential): boolean {

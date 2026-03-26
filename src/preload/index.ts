@@ -139,7 +139,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   providersList: () => invoke(IPC_PROVIDERS_LIST),
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) =>
     invoke(IPC_PROVIDERS_SAVE_PROFILE, opts),
-  providersDeleteProfile: (opts: { profileId: string }) =>
+  providersDeleteProfile: (opts: { profileId: string; provider?: string }) =>
     invoke(IPC_PROVIDERS_DELETE_PROFILE, opts),
   providersTest: (config: unknown) => invoke(IPC_PROVIDERS_TEST, config),
   providersExport: (opts?: { maskKeys?: boolean }) => invoke<string>(IPC_PROVIDERS_EXPORT, opts ?? {}),

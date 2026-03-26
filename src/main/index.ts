@@ -22,6 +22,7 @@ import { initAutoUpdater, runPostUpdateValidationIfNeeded, checkForUpdates } fro
 import { startBackgroundUpdateCheck, stopBackgroundUpdateCheck } from './update/background-check.js'
 import { parseGatewayLogLine } from './logs/index.js'
 import { migrateAuthProfilesIfNeeded } from './wizard/index.js'
+import { listAuthProfiles } from './providers/index.js'
 import { syncLoginItemToSystem, getLoginItemOpenAtLogin, clearLoginItem } from './login-item/index.js'
 import { patchGatewayResponseHeaders } from './security/gateway-response-headers.js'
 import { rewriteGatewayRequestUrlWithToken } from './security/gateway-request-auth.js'
@@ -201,6 +202,7 @@ app.whenReady().then(() => {
   let shellConfig = readShellConfig()
   void readOpenClawConfig() // Warm cache for gateway and other main-path users
   migrateAuthProfilesIfNeeded() // Migrate legacy credentials/ → agents/main/agent (upstream layout)
+  listAuthProfiles(false) // Normalize shorthand auth-profiles keys (provider:name) so gateway auth matches
   if (!openclawConfigExists()) {
     // First-run wizard: reset to stable window size (ignore stale bounds).
     shellConfig = {

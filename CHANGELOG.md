@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.3.2] - 2026-03-26
+
+### Fixed
+
+- **Model auth (401) hardening:** LLM API “save profile” now always stores credentials under **canonical profile ids** (`provider:name`) via `normalizeAuthOrderEntry`, matching `auth.order`. Startup migrates shorthand keys in `auth-profiles.json`; reading `openclaw.json` normalizes `auth.order` entries. Custom provider / wizard auth writes trim API keys. Delete profile accepts optional `provider` and resolves ids consistently with save.
+
 ## [0.3.1] - 2026-03-26
 
 ### Fixed

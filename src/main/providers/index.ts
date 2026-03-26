@@ -18,5 +18,6 @@ export {
   updateAuthOrder,
   addProfileToAuthOrder,
   removeProfileFromAuthOrder,
+  normalizeAuthOrderEntry,
 } from './provider-config.js'
 export type { ProviderSummary, ModelDefaultsSummary, ProvidersListResult } from './provider-config.js'

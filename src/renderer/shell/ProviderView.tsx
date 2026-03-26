@@ -124,9 +124,9 @@ export function ProviderView({ onBack }: ProviderViewProps) {
     }
   }
 
-  const handleDeleteProfile = async (profileId: string) => {
+  const handleDeleteProfile = async (profileId: string, provider: string) => {
     try {
-      await window.electronAPI.providersDeleteProfile({ profileId })
+      await window.electronAPI.providersDeleteProfile({ profileId, provider })
       void load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('shell.llmApi.deleteFailed'))
@@ -259,7 +259,7 @@ export function ProviderView({ onBack }: ProviderViewProps) {
                       size="sm"
                       variant="ghost"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteProfile(prof.profileId)}
+                      onClick={() => handleDeleteProfile(prof.profileId, prof.provider)}
                       aria-label={t('shell.llmApi.deleteProfileAria', { id: prof.profileId })}
                     >
                       <Trash2 className="w-4 h-4" aria-hidden />

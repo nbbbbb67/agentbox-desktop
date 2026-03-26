@@ -149,7 +149,7 @@ export interface ElectronAPI {
 
   providersList: () => Promise<ProvidersListResult>
   providersSaveProfile: (opts: { profileId: string; provider: string; apiKey: string }) => Promise<void>
-  providersDeleteProfile: (opts: { profileId: string }) => Promise<void>
+  providersDeleteProfile: (opts: { profileId: string; provider?: string }) => Promise<void>
   providersTest: (config: ModelConfig) => Promise<WizardTestModelResult>
   providersExport: (opts?: { maskKeys?: boolean }) => Promise<string>
   providersImport: (json: string) => Promise<{ imported: number; errors: string[] }>

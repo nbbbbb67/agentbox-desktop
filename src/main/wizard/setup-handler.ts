@@ -484,7 +484,7 @@ function buildOpenClawConfig(state: WizardState): OpenClawConfig {
           [providerId]: {
             baseUrl,
             api,
-            apiKey: state.modelConfig.apiKey,
+            apiKey: state.modelConfig.apiKey.trim(),
             models: [buildDefaultProviderModel(modelId || 'default')],
           },
         },

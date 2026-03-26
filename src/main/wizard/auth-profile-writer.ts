@@ -130,7 +130,7 @@ export function writeAuthProfile(
   store.profiles[profileId] = {
     type: 'api_key',
     provider,
-    key: apiKey,
+    key: apiKey.trim(),
     ...(options?.metadata ? { metadata: options.metadata } : {}),
   }
 
