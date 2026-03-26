@@ -124,7 +124,7 @@ const PROVIDER_SEEDS: Partial<Record<ModelProvider, ProviderSeed>> = {
   },
   minimax: {
     providerId: 'minimax',
-    baseUrl: 'https://api.minimax.io/anthropic',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
     api: 'anthropic-messages',
     /** Omit authHeader (default): MiniMax uses Anthropic-style `x-api-key`; Bearer breaks with 401 invalid api key. */
   },
