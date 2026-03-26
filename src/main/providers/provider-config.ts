@@ -142,12 +142,23 @@ export function setModelAliases(
 /**
  * Canonical auth.order entry for a provider. OpenClaw expects full profile ids
  * (e.g. `anthropic:work`); older configs may use shorthand (`work` → `anthropic:work`).
+ *
+ * MiniMax API-key flows use profile **`minimax:global`** (wizard / upstream). Shorthand `default`
+ * or legacy `minimax:default` must map there — otherwise auth resolves a missing/wrong key → HTTP 401.
  */
 export function normalizeAuthOrderEntry(providerId: string, entry: string): string {
   const t = entry.trim()
   if (!t) return t
-  if (t.includes(':')) return t
-  return `${providerId}:${t}`
+  if (t.includes(':')) {
+    const [pid, ...restParts] = t.split(':')
+    const suffix = restParts.join(':')
+    if (pid === 'minimax' && suffix.toLowerCase() === 'default') {
+      return 'minimax:global'
+    }
+    return t
+  }
+  const suffix = providerId === 'minimax' && t.toLowerCase() === 'default' ? 'global' : t
+  return `${providerId}:${suffix}`
 }
 
 /**

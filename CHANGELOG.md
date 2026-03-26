@@ -2,6 +2,12 @@
 
 All notable changes to OpenClaw Desktop will be documented in this file.
 
+## [0.3.3] - 2026-03-26
+
+### Fixed
+
+- **MiniMax (401):** OpenClaw and the setup wizard use auth profile **`minimax:global`**, but the LLM API path normalized `default` to **`minimax:default`**, so the gateway looked up the wrong profile. `normalizeAuthOrderEntry` now maps MiniMax `default` / `minimax:default` → **`minimax:global`**; `auth-profiles.json` migration renames `minimax:default` to `minimax:global` when needed.
+
 ## [0.3.2] - 2026-03-26
 
 ### Fixed

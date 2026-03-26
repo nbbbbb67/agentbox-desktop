@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { getUserDataDir } from '../utils/paths.js'
+import { normalizeAuthOrderEntry } from './provider-config.js'
 
 const AUTH_STORE_VERSION = 1
 const AUTH_PROFILE_FILENAME = 'auth-profiles.json'
@@ -106,7 +107,7 @@ function migrateShorthandProfileKeys(store: AuthProfileStore): { store: AuthProf
     if (profileId.includes(':')) continue
     const provider = cred.provider
     if (typeof provider !== 'string' || !provider.trim()) continue
-    const canonical = `${provider}:${profileId}`
+    const canonical = normalizeAuthOrderEntry(provider, profileId)
     if (profiles[canonical]) {
       delete profiles[profileId]
       changed = true
@@ -114,6 +115,14 @@ function migrateShorthandProfileKeys(store: AuthProfileStore): { store: AuthProf
     }
     profiles[canonical] = cred
     delete profiles[profileId]
+    changed = true
+  }
+  // Legacy: minimax:default → minimax:global (OpenClaw / desktop wizard convention)
+  if (profiles['minimax:default']) {
+    if (!profiles['minimax:global']) {
+      profiles['minimax:global'] = profiles['minimax:default']
+    }
+    delete profiles['minimax:default']
     changed = true
   }
   if (!changed) return { store, changed: false }
