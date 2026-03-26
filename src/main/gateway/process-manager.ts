@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
-import type { GatewayStatus, GatewayStatusValue } from '../../shared/types.js'
+import type { GatewayStatus, GatewayStatusValue, OpenClawConfig } from '../../shared/types.js'
 import { DEFAULT_GATEWAY_PORT } from '../../shared/constants.js'
 import { getBundledNodePath, getBundledOpenClawDir, getBundledOpenClawPath, getUserDataDir } from '../utils/paths.js'
 import { OPENCLAW_CONFIG_FILE } from '../../shared/constants.js'
@@ -58,6 +58,7 @@ const KUAE_DIRECT_NO_PROXY_HOSTS = ['coding-plan-endpoint.kuaecloud.net', '.kuae
 
 /** Feishu / Lark API hosts — bypass broken HTTPS proxies where direct works */
 const FEISHU_DIRECT_NO_PROXY_HOSTS = ['open.feishu.cn', '.feishu.cn', 'open.larksuite.com', '.larksuite.com'] as const
+const MINIMAX_ENV_OVERRIDE_KEYS = ['MINIMAX_API_KEY', 'MINIMAX_CODE_PLAN_KEY'] as const
 
 function mergeNoProxyList(existing: string | undefined, additions: readonly string[]): string {
   const parts = new Set<string>()
@@ -99,6 +100,22 @@ function withNodeInPath(env: NodeJS.ProcessEnv, nodePath: string): NodeJS.Proces
   }
 }
 
+function hasConfiguredMinimaxProfile(config?: OpenClawConfig): boolean {
+  const profiles = config?.auth?.profiles
+  if (!profiles || typeof profiles !== 'object') return false
+  return Object.keys(profiles).some((id) => id.toLowerCase().startsWith('minimax:'))
+}
+
+function stripEnvKeysCaseInsensitive(env: NodeJS.ProcessEnv, keys: readonly string[]): NodeJS.ProcessEnv {
+  const normalized = new Set(keys.map((k) => k.toLowerCase()))
+  const next: NodeJS.ProcessEnv = {}
+  for (const [k, v] of Object.entries(env)) {
+    if (normalized.has(k.toLowerCase())) continue
+    next[k] = v
+  }
+  return next
+}
+
 /** Loopback hosts for NO_PROXY so undici `fetch` in the main process never sends health checks via HTTP(S)_PROXY. */
 const LOOPBACK_NO_PROXY_HOSTS = ['127.0.0.1', 'localhost', '[::1]', '::1'] as const
 
@@ -116,7 +133,7 @@ function ensureMainProcessLoopbackNoProxy(): void {
 
 ensureMainProcessLoopbackNoProxy()
 
-export function createGatewayLaunchSpec(options: GatewayLaunchOptions = {}): GatewayLaunchSpec {
+export function createGatewayLaunchSpec(options: GatewayLaunchOptions = {}, config?: OpenClawConfig): GatewayLaunchSpec {
   const port = options.port ?? DEFAULT_GATEWAY_PORT
   const bind = options.bind ?? 'loopback'
   const nodePath = getBundledNodePath()
@@ -130,14 +147,19 @@ export function createGatewayLaunchSpec(options: GatewayLaunchOptions = {}): Gat
     args.push('--force')
   }
 
+  const envWithNode = withNodeInPath(process.env, nodePath)
+  const envWithoutMinimaxOverride = hasConfiguredMinimaxProfile(config)
+    ? stripEnvKeysCaseInsensitive(envWithNode, MINIMAX_ENV_OVERRIDE_KEYS)
+    : envWithNode
+
   return {
     command: nodePath,
     args,
     // OpenClaw resolves Control UI via process.cwd() (see resolveControlUiRootSync: cwd/dist/control-ui).
-    // Install dir (exe parent) is wrong here — a stray dist/control-ui/index.html without assets yields a black UI.
+    // Install dir (exe parent) is wrong here; a stray dist/control-ui/index.html without assets yields a black UI.
     cwd: getBundledOpenClawDir(),
     env: {
-      ...applyOpenClawNoProxyBypass(withNodeInPath(process.env, nodePath)),
+      ...applyOpenClawNoProxyBypass(envWithoutMinimaxOverride),
       OPENCLAW_STATE_DIR: getUserDataDir(),
       OPENCLAW_CONFIG_PATH: path.join(getUserDataDir(), OPENCLAW_CONFIG_FILE),
       OPENCLAW_AGENT_DIR: path.join(getUserDataDir(), 'agents', 'main', 'agent'),
@@ -188,6 +210,11 @@ export class GatewayProcessManager {
   private readonly logListeners = new Set<(event: GatewayLogEvent) => void>()
   private readonly onLog?: (event: GatewayLogEvent) => void
   private readonly onStatusChange?: (status: GatewayStatus) => void
+  private readonly dedupWindowMs = 6000
+  private readonly dedupState = new Map<
+    string,
+    { lastSeen: number; suppressed: number; sample: string; stream: 'stdout' | 'stderr' }
+  >()
   private waitForReadyAbort: AbortController | null = null
 
   constructor(options: GatewayProcessManagerOptions = {}) {
@@ -271,7 +298,7 @@ export class GatewayProcessManager {
     }
 
     // Migrate and persist openclaw.json before the child reads OPENCLAW_CONFIG_PATH (e.g. MiniMax `authHeader`).
-    void readOpenClawConfig()
+    const runtimeConfig = readOpenClawConfig()
 
     const port = options.port ?? DEFAULT_GATEWAY_PORT
     this.currentPort = port
@@ -287,7 +314,7 @@ export class GatewayProcessManager {
       return this.getStatus()
     }
 
-    const launchSpec = createGatewayLaunchSpec(options)
+    const launchSpec = createGatewayLaunchSpec(options, runtimeConfig)
     logInfo(`[gateway] spawn: ${launchSpec.command} ${launchSpec.args.join(' ')}`)
     this.statusValue = 'starting'
     this.notifyStatusChange()
@@ -647,6 +674,27 @@ export class GatewayProcessManager {
   }
 
   private emitLog(stream: 'stdout' | 'stderr', message: string): void {
+    const now = Date.now()
+    this.flushExpiredDedupSummaries(now)
+    if (this.isFeishuRegistrationLog(message)) {
+      const normalized = this.normalizeLogForDedup(message)
+      const key = `${stream}|${normalized}`
+      const prev = this.dedupState.get(key)
+      if (prev && now - prev.lastSeen <= this.dedupWindowMs) {
+        prev.lastSeen = now
+        prev.suppressed += 1
+        this.dedupState.set(key, prev)
+        return
+      }
+      if (prev && prev.suppressed > 0) {
+        this.emitRawLog(stream, `[gateway] suppressed ${prev.suppressed} repeated log lines: ${prev.sample}`)
+      }
+      this.dedupState.set(key, { lastSeen: now, suppressed: 0, sample: normalized, stream })
+    }
+    this.emitRawLog(stream, message)
+  }
+
+  private emitRawLog(stream: 'stdout' | 'stderr', message: string): void {
     const line = `[gateway:${stream}] ${message}`
     try {
       if (stream === 'stderr') {
@@ -655,10 +703,32 @@ export class GatewayProcessManager {
         logInfo(line)
       }
     } catch {
-      // EPIPE / broken pipe — output pipe closed, safe to ignore
+      // EPIPE / broken pipe; output pipe closed, safe to ignore
     }
     this.onLog?.({ stream, message })
     this.logListeners.forEach((listener) => listener({ stream, message }))
+  }
+
+  private normalizeLogForDedup(message: string): string {
+    return message
+      .replace(/^\d{4}-\d{2}-\d{2}T[^\s]+\s+/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  private isFeishuRegistrationLog(message: string): boolean {
+    const normalized = this.normalizeLogForDedup(message)
+    return /\bfeishu_(doc|chat|wiki|drive|bitable)\b/i.test(normalized) && /\bRegistered\b/i.test(normalized)
+  }
+
+  private flushExpiredDedupSummaries(now: number): void {
+    for (const [key, entry] of this.dedupState.entries()) {
+      if (now - entry.lastSeen <= this.dedupWindowMs) continue
+      if (entry.suppressed > 0) {
+        this.emitRawLog(entry.stream, `[gateway] suppressed ${entry.suppressed} repeated log lines: ${entry.sample}`)
+      }
+      this.dedupState.delete(key)
+    }
   }
 
   private notifyStatusChange(): void {
