@@ -116,6 +116,15 @@ function stripEnvKeysCaseInsensitive(env: NodeJS.ProcessEnv, keys: readonly stri
   return next
 }
 
+function listPresentEnvKeysCaseInsensitive(env: NodeJS.ProcessEnv, keys: readonly string[]): string[] {
+  const normalized = new Set(keys.map((k) => k.toLowerCase()))
+  const present = new Set<string>()
+  for (const k of Object.keys(env)) {
+    if (normalized.has(k.toLowerCase())) present.add(k)
+  }
+  return [...present]
+}
+
 /** Loopback hosts for NO_PROXY so undici `fetch` in the main process never sends health checks via HTTP(S)_PROXY. */
 const LOOPBACK_NO_PROXY_HOSTS = ['127.0.0.1', 'localhost', '[::1]', '::1'] as const
 
@@ -299,6 +308,17 @@ export class GatewayProcessManager {
 
     // Migrate and persist openclaw.json before the child reads OPENCLAW_CONFIG_PATH (e.g. MiniMax `authHeader`).
     const runtimeConfig = readOpenClawConfig()
+    const minimaxProfileConfigured = hasConfiguredMinimaxProfile(runtimeConfig)
+    const minimaxEnvKeysPresent = listPresentEnvKeysCaseInsensitive(process.env, MINIMAX_ENV_OVERRIDE_KEYS)
+    if (minimaxProfileConfigured) {
+      if (minimaxEnvKeysPresent.length > 0) {
+        logInfo(
+          `[gateway] MiniMax env guard active; stripping inherited env keys: ${minimaxEnvKeysPresent.join(', ')}`,
+        )
+      } else {
+        logInfo('[gateway] MiniMax env guard active; no inherited MiniMax env keys detected')
+      }
+    }
 
     const port = options.port ?? DEFAULT_GATEWAY_PORT
     this.currentPort = port

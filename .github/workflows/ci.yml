@@ -13,6 +13,8 @@ concurrency:
 env:
   # Match release.yml: pin-only checks, no npm `openclaw@latest` drift warnings in CI logs
   OPENCLAW_SKIP_NPM_LATEST_CHECK: '1'
+  # setup-node `cache: pnpm` keys off the lockfile and restores the pnpm store only (not app source).
+  # The checkout step is always the source tree for this commit; `pnpm install --frozen-lockfile` materializes node_modules.
 
 jobs:
   verify:
@@ -26,6 +28,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Print build identity (SHA + HEAD)
+        run: |
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -36,6 +45,7 @@ jobs:
         with:
           node-version: 22.16.0
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

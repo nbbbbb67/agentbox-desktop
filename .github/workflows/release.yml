@@ -27,6 +27,9 @@ env:
       (startsWith(github.event.inputs.tag, 'refs/') && github.event.inputs.tag || format('refs/tags/{0}', github.event.inputs.tag)) ||
       github.ref
     }}
+  # Caching: setup-node `cache: pnpm` restores the pnpm store (keyed by lockfile); it does not substitute repo source.
+  # `pnpm install --frozen-lockfile` links node_modules for the checked-out tree. package_win `Cache Electron` only caches
+  # Electron/electron-builder download dirs (not app code). Control UI comes from this run's upload-artifact + run-id-scoped download.
 
 jobs:
   release_gate:
@@ -54,6 +57,14 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 1
 
+      - name: Print build identity (ref + SHA)
+        run: |
+          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -64,6 +75,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION_CI }}
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -100,6 +112,14 @@ jobs:
           fetch-tags: true
           submodules: false
 
+      - name: Print build identity (ref + SHA)
+        run: |
+          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -110,6 +130,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION_CI }}
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -155,6 +176,15 @@ jobs:
           fetch-tags: true
           submodules: false
 
+      - name: Print build identity (ref + SHA)
+        shell: pwsh
+        run: |
+          Write-Host "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          Write-Host "GITHUB_REF=$env:GITHUB_REF"
+          Write-Host "GITHUB_SHA=$env:GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -165,6 +195,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION_CI }}
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Cache Electron
         uses: actions/cache@v4
@@ -172,7 +203,8 @@ jobs:
           path: |
             ${{ env.ELECTRON_CACHE }}
             ${{ env.ELECTRON_BUILDER_CACHE }}
-          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          # Lockfile + builder config: invalidates when Electron or tooling versions / extra downloads change (not app TS/CSS alone).
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.config.cjs', 'electron-builder.yml') }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -327,6 +359,13 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           submodules: false
+
+      - name: Print build identity (ref + SHA)
+        run: |
+          echo "CHECKOUT_REF=${{ env.CHECKOUT_REF }}"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          git log -1 --oneline
 
       - name: Download signed installer
         if: needs.sign_path.result == 'success'
