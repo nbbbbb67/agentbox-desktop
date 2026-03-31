@@ -80,6 +80,8 @@ module.exports = {
 
   publish: {
     provider: 'github',
+    owner: 'agentkernel',
+    repo: 'openclaw-desktop',
     vPrefixedTagName: true,
     releaseType: 'release',
   },

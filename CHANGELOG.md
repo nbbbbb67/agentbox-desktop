@@ -4,6 +4,24 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-31
+
+### Changed
+
+- **Release：** Shell **`0.5.0+openclaw.2026.3.28`**（延续 `主版本+openclaw.<捆绑 OpenClaw 版本号>` 命名）；Git 标签 **`v0.5.0`**。
+- **文档：** `README.md` / `README.zh-CN.md` 精简为当前发行说明：桌面壳 **v0.5.0**、捆绑 OpenClaw **2026.3.28**，并摘录 [上游 OpenClaw v2026.3.28](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28) 更新要点；历史条目见本文件。
+- **CI：** `release.yml` 手动发布示例 tag 更新为 `v0.5.0`。
+- **CONTRIBUTING：** 与当前 `openclawBundleVersion` / 壳版本表述对齐。
+
+## [0.4.11] - 2026-03-31
+
+### Changed
+
+- **Bundled OpenClaw:** 升级至 npm **2026.3.28**（[上游 v2026.3.28](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28)）。相对 2026.3.24 含大量通道/网关/CLI 修复与行为变更；破坏性项包括：Qwen 弃用 `qwen-portal-auth`、Doctor 不再自动迁移两个月前的旧配置键。
+- **向导 MiniMax 预设：** 下拉选项与上游目录一致，仅保留 **M2.7** 系列（移除已弃用的 M2 / M2.1 / M2.5 / VL-01）。
+- **飞书 `registerFull` 补丁：** 上游将 Feishu 打入 `dist/auth-profiles-*.js` 后，原 `dist/feishu-*.js` 补丁不再命中；现同时扫描 `auth-profiles-*.js` 并注入一次性防护。`prepare-bundle` 在 OpenClaw 因版本相同跳过复制时仍会对 `resources/openclaw` 打补丁，避免随包资源缺补丁。
+- **Release：** Shell `0.4.11+openclaw.2026.3.28`；`prepare-bundle` 后 `resources/bundle-manifest.json` 与 `package.json` 对齐。
+
 ## [0.4.10] - 2026-03-27
 
 ### Added

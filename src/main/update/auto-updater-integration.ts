@@ -5,13 +5,47 @@
 
 import { app } from 'electron'
 import { autoUpdater, CancellationToken, type ProgressInfo } from 'electron-updater'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { IPC_UPDATE_AVAILABLE, IPC_UPDATE_PROGRESS } from '../../shared/ipc-channels.js'
 import type { UpdateCheckResult } from '../../shared/types.js'
+
+const GITHUB_REPO_RELEASES = 'https://github.com/agentkernel/openclaw-desktop/releases'
+
+function releaseNotesFromUpdateInfo(info: UpdateInfo): string | undefined {
+  const n = info.releaseNotes
+  if (n == null) return undefined
+  if (typeof n === 'string') return n
+  if (Array.isArray(n)) {
+    return n.map((e) => e.note ?? '').filter(Boolean).join('\n\n')
+  }
+  return undefined
+}
+
+function installerDownloadUrlFromUpdateInfo(info: UpdateInfo): string | undefined {
+  const files = info.files
+  if (!files?.length) return undefined
+  const bySetup = files.find(
+    (f) => /\.exe$/i.test(f.url) && f.url.toLowerCase().includes('setup'),
+  )
+  if (bySetup) return bySetup.url
+  const exe = files.find((f) => /\.exe$/i.test(f.url))
+  return exe?.url
+}
+
+function releasePageUrlForVersion(version: string): string {
+  const tag = version.startsWith('v') ? version : `v${version}`
+  return `${GITHUB_REPO_RELEASES}/tag/${encodeURIComponent(tag)}`
+}
 
 export type SendToRenderer = (channel: string, ...args: unknown[]) => void
 
 let sendToRenderer: SendToRenderer = () => {}
 let currentCancellationToken: CancellationToken | null = null
+
+/** Emit download progress (used by GitHub fallback downloader and tests). */
+export function sendUpdateProgressPayload(payload: Record<string, unknown>): void {
+  sendToRenderer(IPC_UPDATE_PROGRESS, payload)
+}
 
 /**
  * Init autoUpdater and forward events to renderer (packaged only; dev skips)
@@ -39,6 +73,8 @@ export function initAutoUpdater(
   try {
     const config = readShellConfig()
     autoUpdater.channel = electronUpdaterChannel(config?.updateChannel)
+    // Channel setter flips allowDowngrade to true; we only want upgrades from the feed.
+    autoUpdater.allowDowngrade = false
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = false
 
@@ -88,26 +124,29 @@ export async function checkForUpdatesWithAutoUpdater(
   try {
     const config = readShellConfig()
     autoUpdater.channel = electronUpdaterChannel(config?.updateChannel)
+    autoUpdater.allowDowngrade = false
 
     const result = await autoUpdater.checkForUpdates()
-    if (!result?.updateInfo) {
-      return {
-        hasUpdate: false,
-        currentVersion: app.getVersion(),
-      }
+    if (result == null) {
+      return null
+    }
+
+    const currentVersion = app.getVersion()
+    if (!result.isUpdateAvailable) {
+      return { hasUpdate: false, currentVersion }
     }
 
     const info = result.updateInfo
     const latestVersion = typeof info.version === 'string' ? info.version : String(info.version ?? '')
-    const currentVersion = app.getVersion()
 
     return {
       hasUpdate: true,
       currentVersion,
       latestVersion,
-      releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined,
+      releaseNotes: releaseNotesFromUpdateInfo(info),
       publishedAt: info.releaseDate,
-      downloadUrl: (info as { downloadedFile?: string }).downloadedFile,
+      releaseUrl: releasePageUrlForVersion(latestVersion),
+      downloadUrl: installerDownloadUrlFromUpdateInfo(info),
     }
   } catch {
     return null

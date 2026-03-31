@@ -930,7 +930,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
 
   ipcMain.handle(
     IPC_UPDATE_DOWNLOAD_SHELL,
-    wrapHandler('UPDATE_DOWNLOAD_SHELL', () => downloadUpdate()),
+    wrapHandler('UPDATE_DOWNLOAD_SHELL', () => downloadUpdate(deps.readShellConfig)),
   )
 
   ipcMain.handle(

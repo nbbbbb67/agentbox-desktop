@@ -221,6 +221,9 @@ async function main(): Promise<void> {
     forceOpenclawCopy,
   )
 
+  // Re-apply on resources: copyDir may skip when version matches, leaving stale dist without the Feishu guard.
+  await patchOpenClawFeishuRegisterOnce(DEST_OPENCLAW)
+
   // --- Validate OpenClaw dist integrity ---
   const missingDist = await validateOpenclawDist(DEST_OPENCLAW)
   if (missingDist.length > 0) {

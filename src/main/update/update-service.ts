@@ -6,6 +6,7 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import semver from 'semver'
 import type {
   UpdateCheckResult,
   BundleVerifyResult,
@@ -20,7 +21,9 @@ import {
   downloadShellUpdate,
   cancelShellDownload,
   quitAndInstallShell,
+  sendUpdateProgressPayload,
 } from './auto-updater-integration.js'
+import { spawn } from 'node:child_process'
 import { runBackupCreateCli } from '../backup/index.js'
 import { getUserDataDir } from '../utils/paths.js'
 import { writePostUpdateMarker } from './post-update-validation.js'
@@ -28,6 +31,21 @@ import { writePostUpdateMarker } from './post-update-validation.js'
 const GITHUB_REPO = 'agentkernel/openclaw-desktop'
 const MAX_BACKUPS_KEEP = 1
 const GITHUB_API_BASE = 'https://api.github.com'
+
+type ReadShellConfig = () => { updateChannel?: string }
+
+/** Set on each successful `checkForUpdates` — drives GitHub-only download when electron-updater did not run a check. */
+let lastUpdateCheckMeta: {
+  source: 'electron-updater' | 'github-api'
+  downloadUrl?: string
+  /** GitHub: newer tag than current but no matching .exe asset (or URL missing). */
+  githubMissingInstaller?: boolean
+} | null = null
+
+/** After `downloadUpdate`: electron-updater path vs installer fetched from GitHub API fallback. */
+let lastDownloadMode: 'electron-updater' | 'standalone' | null = null
+let lastStandaloneInstallerPath: string | null = null
+let standaloneDownloadAbort: AbortController | null = null
 
 interface GitHubRelease {
   tag_name: string
@@ -41,19 +59,57 @@ interface GitHubRelease {
 }
 
 function normalizeVersion(tag: string): string {
-  return tag.replace(/^v/, '')
+  return tag.replace(/^v/, '').trim()
 }
 
-function isNewerVersion(current: string, latest: string): boolean {
-  const c = current.split('.').map(Number)
-  const l = latest.split('.').map(Number)
-  for (let i = 0; i < Math.max(c.length, l.length); i++) {
-    const cv = c[i] ?? 0
-    const lv = l[i] ?? 0
-    if (lv > cv) return true
-    if (lv < cv) return false
+/**
+ * Shell versions use semver plus build metadata (e.g. `0.5.0+openclaw.2026.3.28`).
+ * Semver ignores build metadata for precedence; we tie-break with a full string compare.
+ * Returns negative if a is older than b.
+ */
+function compareShellVersions(a: string, b: string): number {
+  const na = normalizeVersion(a)
+  const nb = normalizeVersion(b)
+  const pa = semver.parse(na)
+  const pb = semver.parse(nb)
+  if (pa && pb) {
+    const ord = semver.compare(pa, pb)
+    if (ord !== 0) return ord
   }
-  return false
+  return na.localeCompare(nb, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+function isRemoteVersionNewer(current: string, remote: string): boolean {
+  return compareShellVersions(current, remote) < 0
+}
+
+function pickWindowsSetupAsset(
+  assets: GitHubRelease['assets'] | undefined,
+): { browser_download_url: string } | undefined {
+  if (!assets?.length) return undefined
+  const lower = (n: string) => n.toLowerCase()
+  const openclawSetup = assets.find(
+    (a) =>
+      a.name.endsWith('.exe') &&
+      lower(a.name).includes('openclaw') &&
+      lower(a.name).includes('setup'),
+  )
+  if (openclawSetup) return openclawSetup
+  const anySetup = assets.find((a) => a.name.endsWith('.exe') && lower(a.name).includes('setup'))
+  if (anySetup) return anySetup
+  return assets.find((a) => a.name.endsWith('.exe'))
+}
+
+function githubApiHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'openclaw-desktop-updater (https://github.com/agentkernel/openclaw-desktop)',
+  }
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  return headers
 }
 
 async function checkForUpdatesViaGitHub(): Promise<UpdateCheckResult> {
@@ -61,7 +117,7 @@ async function checkForUpdatesViaGitHub(): Promise<UpdateCheckResult> {
   const res = await fetch(
     `${GITHUB_API_BASE}/repos/${GITHUB_REPO}/releases/latest`,
     {
-      headers: { Accept: 'application/vnd.github.v3+json' },
+      headers: githubApiHeaders(),
       signal: AbortSignal.timeout(10_000),
     }
   )
@@ -73,10 +129,8 @@ async function checkForUpdatesViaGitHub(): Promise<UpdateCheckResult> {
   }
   const release = (await res.json()) as GitHubRelease
   const latestVersion = normalizeVersion(release.tag_name)
-  const hasUpdate = isNewerVersion(currentVersion, latestVersion)
-  const setupAsset = release.assets?.find(
-    (a) => a.name.endsWith('.exe') && a.name.toLowerCase().includes('setup')
-  )
+  const hasUpdate = isRemoteVersionNewer(currentVersion, latestVersion)
+  const setupAsset = pickWindowsSetupAsset(release.assets)
   return {
     hasUpdate,
     currentVersion,
@@ -88,20 +142,29 @@ async function checkForUpdatesViaGitHub(): Promise<UpdateCheckResult> {
   }
 }
 
-export async function checkForUpdates(
-  readShellConfig: () => { updateChannel?: string },
-): Promise<UpdateCheckResult> {
+export async function checkForUpdates(readShellConfig: ReadShellConfig): Promise<UpdateCheckResult> {
   const currentVersion = app.getVersion()
   try {
     const result = await checkForUpdatesWithAutoUpdater(readShellConfig)
     if (result !== null) {
+      lastUpdateCheckMeta = {
+        source: 'electron-updater',
+        downloadUrl: result.downloadUrl,
+        githubMissingInstaller: false,
+      }
       return result
     }
   } catch {
     // Fall back to GitHub API
   }
   try {
-    return await checkForUpdatesViaGitHub()
+    const result = await checkForUpdatesViaGitHub()
+    lastUpdateCheckMeta = {
+      source: 'github-api',
+      downloadUrl: result.downloadUrl,
+      githubMissingInstaller: result.hasUpdate === true && !result.downloadUrl,
+    }
+    return result
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
     if (msg.includes('abort') || msg.includes('timeout')) {
@@ -111,12 +174,126 @@ export async function checkForUpdates(
   }
 }
 
-export async function downloadUpdate(): Promise<void> {
-  await downloadShellUpdate()
+/**
+ * Download installer: prefers electron-updater (delta / signed pipeline). If the last check used the
+ * GitHub API fallback (electron-updater check failed), downloads the release asset to temp.
+ */
+export async function downloadUpdate(readShellConfig: ReadShellConfig): Promise<void> {
+  if (!app.isPackaged) {
+    throw new Error('Updates are not available in development mode')
+  }
+
+  lastStandaloneInstallerPath = null
+  lastDownloadMode = null
+
+  const r = await checkForUpdatesWithAutoUpdater(readShellConfig)
+  if (r?.hasUpdate) {
+    lastDownloadMode = 'electron-updater'
+    await downloadShellUpdate()
+    return
+  }
+
+  // Re-check may report no update while updateInfoAndProvider is still set from an earlier check in this session.
+  try {
+    lastDownloadMode = 'electron-updater'
+    await downloadShellUpdate()
+    return
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!msg.toLowerCase().includes('please check update')) {
+      throw e
+    }
+  }
+
+  const meta = lastUpdateCheckMeta
+  if (meta?.source === 'github-api' && meta.downloadUrl) {
+    lastDownloadMode = 'standalone'
+    try {
+      await downloadInstallerFromGithubUrl(meta.downloadUrl)
+    } catch (e) {
+      lastDownloadMode = null
+      const msg = e instanceof Error ? e.message : String(e)
+      sendUpdateProgressPayload({ percent: 0, error: msg })
+      throw e
+    }
+    return
+  }
+
+  if (meta?.source === 'github-api' && meta.githubMissingInstaller) {
+    throw new Error(
+      'This release has no Windows installer (.exe) attached, or the asset URL could not be resolved. Open the Releases page and download manually.',
+    )
+  }
+
+  throw new Error('No update available. Check for updates first.')
+}
+
+async function downloadInstallerFromGithubUrl(url: string): Promise<void> {
+  standaloneDownloadAbort = new AbortController()
+  const signal = standaloneDownloadAbort.signal
+  const dest = path.join(app.getPath('temp'), `OpenClaw-Setup-update-${Date.now()}.exe`)
+  try {
+    sendUpdateProgressPayload({ percent: 0, transferred: 0 })
+    const res = await fetch(url, {
+      redirect: 'follow',
+      headers: githubApiHeaders(),
+      signal,
+    })
+    if (!res.ok) {
+      throw new Error(`Download failed: HTTP ${res.status}`)
+    }
+    const contentLength = Number(res.headers.get('content-length') ?? '') || undefined
+    const body = res.body
+    if (!body) {
+      throw new Error('Empty response body')
+    }
+    const reader = body.getReader()
+    let received = 0
+    const fd = fs.openSync(dest, 'w')
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value?.length) continue
+        fs.writeSync(fd, value)
+        received += value.byteLength
+        if (contentLength && contentLength > 0) {
+          sendUpdateProgressPayload({
+            percent: Math.min(99, (received / contentLength) * 100),
+            transferred: received,
+            total: contentLength,
+          })
+        }
+      }
+    } finally {
+      fs.closeSync(fd)
+    }
+    lastStandaloneInstallerPath = dest
+    sendUpdateProgressPayload({
+      percent: 100,
+      completed: true,
+      transferred: received,
+      total: contentLength ?? received,
+    })
+  } catch (e) {
+    try {
+      if (fs.existsSync(dest)) fs.unlinkSync(dest)
+    } catch {
+      // ignore
+    }
+    lastStandaloneInstallerPath = null
+    throw e
+  } finally {
+    standaloneDownloadAbort = null
+  }
 }
 
 export function cancelDownload(): void {
   cancelShellDownload()
+  if (standaloneDownloadAbort) {
+    standaloneDownloadAbort.abort()
+    standaloneDownloadAbort = null
+  }
 }
 
 /**
@@ -169,6 +346,21 @@ export async function installShellUpdateWithBackup(): Promise<void> {
     console.warn('[update] Pre-install backup failed:', err instanceof Error ? err.message : String(err))
     // Continue install — non-blocking
   }
+
+  if (lastDownloadMode === 'standalone' && lastStandaloneInstallerPath && fs.existsSync(lastStandaloneInstallerPath)) {
+    const installerPath = lastStandaloneInstallerPath
+    const installDir = getInstallDir()
+    const args = ['--updated', '--force-run', `/D=${installDir}`]
+    const child = spawn(installerPath, args, { detached: true, stdio: 'ignore' })
+    child.unref()
+    lastStandaloneInstallerPath = null
+    lastDownloadMode = null
+    setImmediate(() => {
+      app.quit()
+    })
+    return
+  }
+
   quitAndInstallShell()
 }
 
