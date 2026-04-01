@@ -4,14 +4,26 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-01
+
+### Fixed
+
+- **Control UI / `package.json`：** `ensureOpenClawRootDepsForBundledSrc` 为解析 `../src/**` 曾写入临时 stub `package.json`（`0.0.0`），构建结束后未还原，导致 `build/openclaw`（及随后同步的 `resources/openclaw`）与 `.openclaw-version` 版本不一致，`check-openclaw-versions` 失败。现于 root `npm install` 后 **写回 GitHub 标签解压得到的真实 OpenClaw `package.json`**（`scripts/ensure-openclaw-control-ui.ts`）。
+- **prepare-bundle / 资源同步：** 当 `resources/openclaw` 仅因版本标记相同而 **跳过复制** 时，可能仍保留上述 stub 清单。现检测 `package.json` 的 `name === "openclaw-desktop-control-ui-openclawroot"` 时 **强制从 `build/openclaw` 重拷**（`scripts/prepare-bundle.ts`）。
+
+### Changed
+
+- **Release：** Shell **`0.6.0+openclaw.2026.3.31`**；Git 标签 **`v0.6.0`**。捆绑 OpenClaw 仍为 **2026.3.31**（`openclawBundleVersion` 未变）。
+- **文档：** `README.md` / `README.zh-CN.md` / `CONTRIBUTING.md` / `release.yml` 示例 tag 与 **v0.6.0** 对齐。
+
 ## [0.5.0] - 2026-03-31
 
 ### Changed
 
-- **Release：** Shell **`0.5.0+openclaw.2026.3.28`**（延续 `主版本+openclaw.<捆绑 OpenClaw 版本号>` 命名）；Git 标签 **`v0.5.0`**。
-- **文档：** `README.md` / `README.zh-CN.md` 精简为当前发行说明：桌面壳 **v0.5.0**、捆绑 OpenClaw **2026.3.28**，并摘录 [上游 OpenClaw v2026.3.28](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28) 更新要点；历史条目见本文件。
+- **Bundled OpenClaw：** 自 **2026.3.28** 升至 **2026.3.31**（npm `latest`）。上游含飞书相关修复：`hooks.mappings[].channel` 接受 `feishu`（[#56226](https://github.com/openclaw/openclaw/issues/56226)）、群组引用回复与 allowlist 对齐等；完整说明见 [v2026.3.31](https://github.com/openclaw/openclaw/releases/tag/v2026.3.31) / [npm 摘要](https://newreleases.io/project/npm/openclaw/release/2026.3.31)。破坏性项包括：`nodes.run` 壳封装移除、插件安装/技能依赖扫描默认失败关闭、`trusted-proxy` 与 Node 配对/命令面收紧等（详见上游 Release）。桌面仍对随包 `dist` 执行 `patch-openclaw-feishu-register-once`；**2026.3.31** 起 Feishu 打入 `dist/extensions/feishu/index.js`，补丁已覆盖该路径，避免 `registrationMode: full` 下重复 `registerFull`。
+- **Release：** Shell **`0.5.0+openclaw.2026.3.31`**（延续 `主版本+openclaw.<捆绑 OpenClaw 版本号>` 命名）；Git 标签 **`v0.5.0`**。
+- **文档：** `README.md` / `README.zh-CN.md` / `CONTRIBUTING.md` 与 **2026.3.31** 钉扎及上游摘要对齐；历史条目见本文件。
 - **CI：** `release.yml` 手动发布示例 tag 更新为 `v0.5.0`。
-- **CONTRIBUTING：** 与当前 `openclawBundleVersion` / 壳版本表述对齐。
 
 ## [0.4.11] - 2026-03-31
 

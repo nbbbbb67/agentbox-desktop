@@ -229,6 +229,10 @@ async function ensureOpenclawRootDepsForBundledSrc(
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: '' },
   })
+  // Restore the real OpenClaw manifest (name/version/bin/files). The stub uses 0.0.0 and breaks
+  // version checks and tooling; node_modules already matches upstream dependency keys.
+  const upstreamPkgRaw = await readFile(upstreamPath, 'utf8')
+  await writeFile(join(openclawRoot, 'package.json'), `${upstreamPkgRaw.trimEnd()}\n`, 'utf8')
 }
 
 async function findExtractedRepoRoot(extractParent: string): Promise<string> {

@@ -48,41 +48,46 @@ If you've been searching for *how to install OpenClaw on Windows*, *how to run O
 ## Quick Start
 
 1. Download the latest installer from [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest)
-2. Run the Windows setup (filename follows `package.json`, e.g. `OpenClaw-Setup-0.5.0+openclaw.2026.3.28.exe`)
+2. Run the Windows setup (filename follows `package.json`, e.g. `OpenClaw-Setup-0.6.0+openclaw.2026.3.31.exe`)
 3. Finish the setup wizard (provider → channel → gateway)
 4. Launch from Start Menu or Desktop shortcut
 
 **System:** Windows 10/11 x64 · ~350 MB free space · Internet for API calls
 
-## OpenClaw Desktop v0.5.0
+## OpenClaw Desktop v0.6.0
 
-- **Shell version:** `0.5.0+openclaw.2026.3.28` (semver + bundled OpenClaw pin in build metadata).
-- **Bundled OpenClaw (npm):** **2026.3.28** — same runtime as `npm install openclaw@2026.3.28`; pinned in [`package.json`](package.json) as `openclawBundleVersion`.
-- **Desktop highlights (recent train):** Feishu `registerFull` once-per-process guard for upstream `dist/auth-profiles-*.js` layout; MiniMax wizard presets aligned to upstream **M2.7-only** catalog; Control UI built from GitHub tag sources for Electron; optional details in [CHANGELOG.md](CHANGELOG.md) (e.g. **[0.4.11]**).
+- **Shell version:** `0.6.0+openclaw.2026.3.31` (semver + bundled OpenClaw pin in build metadata).
+- **Bundled OpenClaw (npm):** **2026.3.31** — same runtime as `npm install openclaw@2026.3.31` (current npm `latest`); pinned in [`package.json`](package.json) as `openclawBundleVersion`.
+- **Desktop highlights (recent train):** **v0.6.0** fixes Control UI build leaving a stub `package.json` in the bundle and `prepare-bundle` skipping copy when the version marker matched — see [CHANGELOG **0.6.0**](CHANGELOG.md). Feishu `registerFull` guard covers `dist/extensions/feishu/index.js`; MiniMax wizard **M2.7-only**; Control UI from GitHub tag sources for Electron.
 
-### Upstream OpenClaw 2026.3.28 (summary)
+### Upstream OpenClaw 2026.3.31 (summary)
 
-Full notes: [openclaw/openclaw **v2026.3.28**](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28).
+Full notes: [openclaw/openclaw **v2026.3.31**](https://github.com/openclaw/openclaw/releases/tag/v2026.3.31) · [npm release digest](https://newreleases.io/project/npm/openclaw/release/2026.3.31).
 
-**Breaking**
+**Breaking (this bump)**
 
-- **Qwen:** Remove deprecated `qwen-portal-auth` OAuth for `portal.qwen.ai`; migrate using Model Studio / `openclaw onboard --auth-choice modelstudio-api-key`.
-- **Config / Doctor:** Drop automatic migrations older than about two months; very old legacy keys may fail validation instead of being rewritten.
+- **Nodes / exec:** Remove the duplicated `nodes.run` shell wrapper; node shell execution goes through `exec host=node`; use `nodes invoke` for node-specific capabilities.
+- **Plugin SDK:** Deprecate legacy provider-compat subpaths and older bundled shims; prefer documented `openclaw/plugin-sdk/*` entrypoints (warnings today; future major may remove).
+- **Skills & plugin install:** Built-in dangerous-code `critical` findings and install-time scan failures **fail closed** by default; overrides such as `--dangerously-force-unsafe-install` may be required.
+- **Gateway / auth:** `trusted-proxy` rejects mixed shared-token configs; local-direct fallback requires the configured token (no implicit same-host auth).
+- **Gateway / node:** Node commands stay disabled until node pairing is approved; node-originated runs use a reduced trusted surface.
 
-**Notable changes (abridged)**
+**Feishu-related fixes (upstream)**
 
-- **xAI:** Move bundled xAI to Responses API; add `x_search`; align Grok / web-search and tool config so bundled flows work without manual plugin toggles; onboard can offer optional `x_search` setup.
-- **MiniMax:** Image generation for `image-01`; chat catalog trimmed to **M2.7** line (legacy M2 / M2.1 / M2.5 / VL-01 removed).
-- **Plugins / hooks:** Async `requireApproval` on `before_tool_call` (exec overlay, Telegram, Discord, `/approve`, etc.).
-- **CLI / plugins:** `openclaw config schema`; bundled Claude / Codex / Gemini CLI on plugin surface; `gateway run --cli-backend-logs` (replaces `--claude-cli-logs` as alias).
-- **Channels & tools:** Many fixes across Telegram, Discord, WhatsApp, BlueBubbles, Matrix, Feishu, Microsoft Teams, Google Chat, and more (delivery, reconnect, pairing, uploads, sandbox, failover).
-- **Control UI:** Keep sensitive raw config hidden by default; explicit reveal-to-edit; raw JSON editing without auto-exposing secrets.
+- **Hooks / config:** `hooks.mappings[].channel` accepts runtime plugin ids such as `feishu` (fixes validation rejecting the Feishu channel). ([#56226](https://github.com/openclaw/openclaw/issues/56226))
+- **Feishu / groups:** Quoted replies and topic bootstrap context stay aligned with group sender allowlists.
+
+**Still in effect from earlier pins (e.g. 2026.3.28)**
+
+- **Qwen:** `qwen-portal-auth` removed; use Model Studio / `openclaw onboard --auth-choice modelstudio-api-key`.
+- **Config / Doctor:** No automatic migrations for very old keys (about two months or older); stale keys may fail validation.
+- **xAI / MiniMax / CLI / Control UI / channels:** See [v2026.3.28](https://github.com/openclaw/openclaw/releases/tag/v2026.3.28) for the large 2026.3.28 train (Responses API, M2.7-only catalog, `openclaw config schema`, sensitive config UI, etc.).
 
 **Tip (MiniMax 401):** MiniMax Anthropic-compatible endpoints expect **`x-api-key`**, not Bearer. This shell sets `authHeader: false` for MiniMax and migrates existing configs on load. Other third-party `anthropic-messages` hosts may still need `authHeader: true` where documented.
 
 Older desktop releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
-## Compatibility with upstream OpenClaw (bundled `2026.3.28`)
+## Compatibility with upstream OpenClaw (bundled `2026.3.31`)
 
 Each release **pins** the bundled OpenClaw npm version in root [`package.json`](package.json) (`openclawBundleVersion`). `pnpm run download-openclaw` installs that exact version (unless you override with a CLI arg or `OPENCLAW_DESKTOP_BUNDLE_VERSION`). For local packaging, run `download-openclaw` before `prepare-bundle`. The committed [`resources/bundle-manifest.json`](resources/bundle-manifest.json) is informational only — **the bundled version is whatever `prepare-bundle` writes to `bundledOpenClawVersion`.**
 
@@ -126,8 +131,8 @@ OpenClaw Desktop is a **community-maintained Windows distribution** for the Open
 
 | | |
 |---|---|
-| **Release** | `v0.5.0` (shell `0.5.0+openclaw.2026.3.28`) |
-| **Installer** | `OpenClaw-Setup-0.5.0+openclaw.2026.3.28.exe` (see [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest) for exact asset) |
+| **Release** | `v0.6.0` (shell `0.6.0+openclaw.2026.3.31`) |
+| **Installer** | `OpenClaw-Setup-0.6.0+openclaw.2026.3.31.exe` (see [Releases](https://github.com/agentkernel/openclaw-desktop/releases/latest) for exact asset) |
 | **Platform** | Windows 10/11 x64 |
 | **Includes** | Electron shell, portable Node.js, bundled OpenClaw |
 | **Extras** | SHA-256 checksum, `latest.yml` for in-app updates |
@@ -208,7 +213,7 @@ pnpm run prepare-bundle
 pnpm run package:win   # Output: dist/OpenClaw-Setup-<version>.exe
 ```
 
-**Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.3.28** for desktop **v0.5.0**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
+**Bundled OpenClaw:** Pinned in `package.json` (`openclawBundleVersion`). After `prepare-bundle`, see `bundledOpenClawVersion` in [`resources/bundle-manifest.json`](resources/bundle-manifest.json) (currently **2026.3.31** for desktop **v0.6.0**). Local checks: `pnpm run check-openclaw-versions` (omit `OPENCLAW_SKIP_NPM_LATEST_CHECK` to also compare against npm `latest`).
 
 **Related docs:** [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 

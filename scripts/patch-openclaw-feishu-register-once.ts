@@ -5,12 +5,22 @@
  *
  * Upstream layouts:
  * - Older: dedicated `dist/feishu-*.js` chunks.
- * - Newer (e.g. 2026.3.28+): Feishu plugin code lives inside hashed `dist/auth-profiles-*.js` bundles.
+ * - Mid: Feishu inside hashed `dist/auth-profiles-*.js` bundles.
+ * - Newer (e.g. 2026.3.31+): bundled channel at `dist/extensions/feishu/index.js`.
  *
  * Idempotent: safe to run after every download-openclaw / prepare-bundle.
  */
-import { readdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { access, readdir, readFile, writeFile } from 'node:fs/promises'
+import { basename, join } from 'node:path'
+
+async function fileExists(p: string): Promise<boolean> {
+  try {
+    await access(p)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const GUARD_FLAG = '__openclawDesktopFeishuFullRegistered'
 
@@ -43,21 +53,28 @@ export async function patchOpenClawFeishuRegisterOnce(openclawRoot: string): Pro
     return
   }
 
-  const candidates = names.filter(
-    (n) => /^feishu-.*\.js$/.test(n) || /^auth-profiles-.*\.js$/.test(n),
-  )
+  const candidatePaths = names
+    .filter((n) => /^feishu-.*\.js$/.test(n) || /^auth-profiles-.*\.js$/.test(n))
+    .map((n) => join(dist, n))
+
+  const feishuExtIndex = join(dist, 'extensions', 'feishu', 'index.js')
+  if (await fileExists(feishuExtIndex)) {
+    candidatePaths.push(feishuExtIndex)
+  }
 
   let patched = false
-  for (const name of candidates) {
-    const ok = await tryPatchFeishuRegisterFullFile(join(dist, name), name)
+  for (const filePath of candidatePaths) {
+    const label =
+      filePath === feishuExtIndex ? 'extensions/feishu/index.js' : basename(filePath)
+    const ok = await tryPatchFeishuRegisterFullFile(filePath, label)
     if (ok) patched = true
   }
 
-  if (!patched && candidates.length > 0) {
+  if (!patched && candidatePaths.length > 0) {
     let hasGuard = false
     let patternStillUnpatched = false
-    for (const name of candidates) {
-      const raw = await readFile(join(dist, name), 'utf8')
+    for (const filePath of candidatePaths) {
+      const raw = await readFile(filePath, 'utf8')
       if (raw.includes(GUARD_FLAG)) hasGuard = true
       if (
         raw.includes('registerFeishuSubagentHooks') &&
@@ -72,7 +89,7 @@ export async function patchOpenClawFeishuRegisterOnce(openclawRoot: string): Pro
       )
     } else if (!hasGuard) {
       console.warn(
-        '  [patch-feishu] Feishu/auth-profiles chunks present but registerFull+registerFeishuSubagentHooks pattern not found — upstream layout may have changed',
+        '  [patch-feishu] Feishu chunks present but registerFull+registerFeishuSubagentHooks pattern not found — upstream layout may have changed',
       )
     }
   }

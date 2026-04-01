@@ -133,6 +133,18 @@ async function copyDir(
   return srcVersion ?? 'unknown'
 }
 
+/** `ensureOpenclawRootDepsForBundledSrc` used to leave a stub package.json in resources/ while the version marker matched — force resync. */
+async function openclawDestHasStubPackageJson(destOpenclaw: string): Promise<boolean> {
+  const pkgPath = join(destOpenclaw, 'package.json')
+  if (!(await fileExists(pkgPath))) return false
+  try {
+    const pkg = await readJson<{ name?: string }>(pkgPath)
+    return pkg.name === 'openclaw-desktop-control-ui-openclawroot'
+  } catch {
+    return false
+  }
+}
+
 async function validateOpenclawDist(rootDir: string): Promise<string[]> {
   const entryPath = join(rootDir, 'dist', 'entry.js')
   const entryAlt = join(rootDir, 'dist', 'entry.mjs')
@@ -200,9 +212,16 @@ async function main(): Promise<void> {
   // --- Copy OpenClaw ---
   const expectedCommander = await expectedCommanderMajor(SRC_OPENCLAW)
   const destCommander = await commanderMajor(DEST_OPENCLAW)
+  const stubManifestInResources = await openclawDestHasStubPackageJson(DEST_OPENCLAW)
+  if (stubManifestInResources) {
+    console.log(
+      '  [warn] openclaw: resources/openclaw/package.json is Control UI stub — re-copying from build/',
+    )
+  }
   const forceOpenclawCopy =
-    expectedCommander !== null && destCommander !== null && destCommander < expectedCommander
-  if (forceOpenclawCopy) {
+    stubManifestInResources ||
+    (expectedCommander !== null && destCommander !== null && destCommander < expectedCommander)
+  if (forceOpenclawCopy && !stubManifestInResources) {
     console.log(
       `  [warn] openclaw: commander v${destCommander} < v${expectedCommander} — re-copying`,
     )
