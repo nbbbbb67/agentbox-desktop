@@ -189,30 +189,42 @@ async function downloadTarballWithCurl(url: string, dest: string, timeoutMs: num
   }
 }
 
+type OpenclawRootPackageJson = {
+  dependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+}
+
 /**
- * Vite bundles `../src/**` under `openclawRoot/src`. Rolldown resolves bare imports (e.g. `zod`)
- * from the source file path upward — `node_modules` must exist on `openclawRoot`, not only under `ui/`.
+ * Vite bundles `../src/**` under `openclawRoot/src`. Rolldown resolves bare imports from the source
+ * file upward, so `node_modules` must exist on `openclawRoot` (not only under `ui/`). Shared `src/`
+ * imports the same packages as the OpenClaw CLI root `package.json` (`zod`, `@mariozechner/pi-ai`, …);
+ * install that full dependency set from the extracted tag to avoid whack-a-mole missing modules.
  */
-async function ensureOpenclawRootDepsForBundledSrc(openclawRoot: string): Promise<void> {
-  const pkgPath = join(openclawRoot, 'package.json')
-  type RootPkg = { name?: string; private?: boolean; dependencies?: Record<string, string> }
-  let pkg: RootPkg
-  if (await fileExists(pkgPath)) {
-    const raw = await readFile(pkgPath, 'utf8')
-    pkg = JSON.parse(raw) as RootPkg
-    pkg.dependencies = { zod: '^4', ...pkg.dependencies }
-  } else {
-    pkg = {
-      name: 'openclaw-desktop-control-ui-openclawroot',
-      private: true,
-      dependencies: { zod: '^4' },
-    }
+async function ensureOpenclawRootDepsForBundledSrc(
+  openclawRoot: string,
+  openclawRepoRoot: string,
+): Promise<void> {
+  const upstreamPath = join(openclawRepoRoot, 'package.json')
+  if (!(await fileExists(upstreamPath))) {
+    throw new Error(`[control-ui] missing OpenClaw package.json: ${upstreamPath}`)
   }
-  if (!pkg.dependencies?.zod) {
-    pkg.dependencies = { ...pkg.dependencies, zod: '^4' }
+  const upstream = JSON.parse(await readFile(upstreamPath, 'utf8')) as OpenclawRootPackageJson
+  const dependencies = upstream.dependencies ?? {}
+  if (Object.keys(dependencies).length === 0) {
+    throw new Error(`[control-ui] OpenClaw package.json has no dependencies: ${upstreamPath}`)
   }
-  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
-  execSync('npm install --no-audit --no-fund', {
+  const stub: Record<string, unknown> = {
+    name: 'openclaw-desktop-control-ui-openclawroot',
+    private: true,
+    version: '0.0.0',
+    dependencies,
+  }
+  const optional = upstream.optionalDependencies
+  if (optional && Object.keys(optional).length > 0) {
+    stub.optionalDependencies = optional
+  }
+  await writeFile(join(openclawRoot, 'package.json'), `${JSON.stringify(stub, null, 2)}\n`, 'utf8')
+  execSync('npm install --no-audit --no-fund --legacy-peer-deps', {
     cwd: openclawRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: '' },
@@ -374,8 +386,8 @@ export async function downloadAndBuildOpenClawControlUiAt(
       env: { ...process.env, NODE_ENV: '' },
     })
 
-    console.log('  [control-ui] npm install zod at openclaw root (for ../src/** resolution)...')
-    await ensureOpenclawRootDepsForBundledSrc(openclawRoot)
+    console.log('  [control-ui] npm install OpenClaw root deps at openclaw root (for ../src/** resolution)...')
+    await ensureOpenclawRootDepsForBundledSrc(openclawRoot, srcRoot)
 
     console.log('  [control-ui] vite build → dist/control-ui')
     execSync('npm run build', {
