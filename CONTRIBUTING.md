@@ -72,7 +72,7 @@ pnpm run package:win
 - Release assets are published through GitHub Actions.
 - The primary downloadable asset is `OpenClaw-Setup-<version>.exe`.
 - For the first public versions, unsigned Windows builds may trigger SmartScreen warnings.
-- **Bundled OpenClaw** version is stored in `resources/bundle-manifest.json` as `bundledOpenClawVersion` (updated by `pnpm run prepare-bundle` from `build/openclaw`). The pin lives in root `package.json` as `openclawBundleVersion`. Desktop **v0.6.0** ships OpenClaw **2026.3.31** alongside shell semver `0.6.0+openclaw.2026.3.31`.
+- **Bundled OpenClaw** version is stored in `resources/bundle-manifest.json` as `bundledOpenClawVersion` (updated by `pnpm run prepare-bundle` from `build/openclaw`). The pin lives in root `package.json` as `openclawBundleVersion`. Desktop **v0.6.1** ships OpenClaw **2026.3.31** alongside shell semver `0.6.1+openclaw.2026.3.31`.
 
 ## License
 

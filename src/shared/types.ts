@@ -58,6 +58,12 @@ export interface GatewayControlUiConfig {
    * Required for embedded dashboard in OpenClaw Desktop.
    */
   allowInsecureAuth?: boolean
+  /**
+   * When true, skip Control UI device-identity requirements on loopback (upstream
+   * `gateway.controlUi.dangerouslyDisableDeviceAuth`). Needed with OpenClaw ≥2026.3.x when the
+   * embedded iframe still hits 500 / device-identity failures despite `allowInsecureAuth`.
+   */
+  dangerouslyDisableDeviceAuth?: boolean
   /** Custom filesystem root for built Control UI (upstream `gateway.controlUi.root`) */
   root?: string
 }

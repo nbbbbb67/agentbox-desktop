@@ -105,9 +105,10 @@ function migrateLegacyProviderConfig(config: OpenClawConfig): { config: OpenClaw
 
 /** Ensure Feishu channel keeps explicit `dmPolicy: pairing` so DMs use pairing flow (not implicit open). */
 /**
- * OpenClaw 2026.3+ rejects Control UI WebSocket connects without device identity unless
- * `gateway.controlUi.allowInsecureAuth` is set. The desktop embeds Control UI in a sandboxed
- * iframe where `crypto.subtle` may be missing — enable this for local (non-remote) gateways.
+ * OpenClaw 2026.3+ hardens Control UI auth (device identity + loopback policy). The desktop embeds
+ * Control UI in an Electron iframe; upstream may return 500 or reject WS unless both
+ * `allowInsecureAuth` and `dangerouslyDisableDeviceAuth` are set for local gateways.
+ * Always normalize to the embedded-safe pair for non-remote mode (overrides user `false`).
  */
 function migrateDesktopControlUiAllowInsecureAuth(
   config: OpenClawConfig,
@@ -120,7 +121,11 @@ function migrateDesktopControlUiAllowInsecureAuth(
     return { config, changed: false }
   }
   const ctrl = gw.controlUi
-  if (ctrl && typeof ctrl === 'object' && ctrl.allowInsecureAuth !== undefined) {
+  const base =
+    ctrl && typeof ctrl === 'object' && !Array.isArray(ctrl)
+      ? (ctrl as Record<string, unknown>)
+      : {}
+  if (base.allowInsecureAuth === true && base.dangerouslyDisableDeviceAuth === true) {
     return { config, changed: false }
   }
   const next = JSON.parse(JSON.stringify(config)) as OpenClawConfig
@@ -129,8 +134,11 @@ function migrateDesktopControlUiAllowInsecureAuth(
     return { config, changed: false }
   }
   ng.controlUi = {
-    ...(typeof ng.controlUi === 'object' && ng.controlUi !== null ? ng.controlUi : {}),
+    ...(typeof ng.controlUi === 'object' && ng.controlUi !== null && !Array.isArray(ng.controlUi)
+      ? ng.controlUi
+      : {}),
     allowInsecureAuth: true,
+    dangerouslyDisableDeviceAuth: true,
   }
   return { config: next, changed: true }
 }
@@ -522,7 +530,7 @@ export function readOpenClawConfig(): OpenClawConfig {
           }
           if (migratedControlUi.changed) {
             console.info(
-              '[config] Set gateway.controlUi.allowInsecureAuth=true for embedded Control UI (OpenClaw 2026.3+)',
+              '[config] Set gateway.controlUi.allowInsecureAuth=true and dangerouslyDisableDeviceAuth=true for embedded Control UI (OpenClaw 2026.3+)',
             )
           }
           if (migratedAuthNone.changed) {

@@ -4,6 +4,12 @@ All notable changes to OpenClaw Desktop will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-01
+
+### Fixed
+
+- **主界面 / Control UI：** 上游 OpenClaw **2026.3.x** 对 Control UI 的 **device identity** 与环回认证更严格，Electron 内嵌 iframe 下仅设置 `gateway.controlUi.allowInsecureAuth` 仍可能出现 **HTTP 500 Internal Server Error** 或 WebSocket 握手失败。现对**非 remote** 网关自动写入 **`allowInsecureAuth: true`** 与 **`dangerouslyDisableDeviceAuth: true`**（并覆盖用户误设的 `false`），与向导新建配置一致（`openclaw-config.ts`、`setup-handler.ts`）。详见上游相关讨论（如 device-identity / Control UI HTTP 问题）。
+
 ## [0.6.0] - 2026-04-01
 
 ### Fixed
