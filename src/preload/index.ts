@@ -213,16 +213,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backupVerify: (archivePath: string) =>
     invoke<{ ok: boolean; archivePath?: string; message?: string }>(IPC_BACKUP_VERIFY, archivePath),
 
-  pairingListPending: (opts: { channel: 'feishu' }) =>
-    invoke<{ channel: 'feishu'; requests: Array<{ code: string; openId?: string; displayName?: string; createdAt?: string; expiresAt?: string }> }>(
+  pairingListPending: (opts: { channel: 'feishu' | 'wechat' }) =>
+    invoke<{ channel: 'feishu' | 'wechat'; requests: Array<{ code: string; openId?: string; displayName?: string; createdAt?: string; expiresAt?: string }> }>(
       IPC_PAIRING_LIST_PENDING,
       opts,
     ),
-  pairingListApproved: (opts: { channel: 'feishu' }) =>
-    invoke<{ channel: 'feishu'; senders: Array<{ openId: string }> }>(IPC_PAIRING_LIST_APPROVED, opts),
-  pairingApprove: (opts: { channel: 'feishu'; code: string; openId?: string }) =>
+  pairingListApproved: (opts: { channel: 'feishu' | 'wechat' }) =>
+    invoke<{ channel: 'feishu' | 'wechat'; senders: Array<{ openId: string }> }>(IPC_PAIRING_LIST_APPROVED, opts),
+  pairingApprove: (opts: { channel: 'feishu' | 'wechat'; code: string; openId?: string }) =>
     invoke<{ ok: boolean; message?: string }>(IPC_PAIRING_APPROVE, opts),
-  pairingRemoveApproved: (opts: { channel: 'feishu'; openId: string }) =>
+  pairingRemoveApproved: (opts: { channel: 'feishu' | 'wechat'; openId: string }) =>
     invoke<{ ok: boolean }>(IPC_PAIRING_REMOVE_APPROVED, opts),
 
   // ─── Event subscriptions ─────────────────────────────────────────────────────

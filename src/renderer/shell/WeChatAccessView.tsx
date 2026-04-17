@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QrCode, RefreshCw, ShieldCheck, X, Copy, Check, ExternalLink, Loader2, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -66,35 +66,6 @@ function mergeWeChatCredentials(
   }
 }
 
-/** Generate a simple QR code as data URL using canvas */
-function generateQRCodeDataUrl(text: string, size = 200): string {
-  // Use a simple QR code generation approach
-  // In production, you'd use a library like qrcode or react-qr-code
-  // Here we create an SVG-based QR placeholder that encodes the text
-  const qr = text
-  const cellSize = Math.floor(size / 25)
-  const qrSize = cellSize * 25
-
-  // Simple visual placeholder - in production use actual QR lib
-  // This creates a visual representation
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${qrSize} ${qrSize}">
-      <rect width="${qrSize}" height="${qrSize}" fill="white"/>
-      <rect x="0" y="0" width="${cellSize * 7}" height="${cellSize * 7}" fill="black"/>
-      <rect x="${cellSize}" y="${cellSize}" width="${cellSize * 5}" height="${cellSize * 5}" fill="white"/>
-      <rect x="${cellSize * 2}" y="${cellSize * 2}" width="${cellSize * 3}" height="${cellSize * 3}" fill="black"/>
-      <rect x="${qrSize - cellSize * 7}" y="0" width="${cellSize * 7}" height="${cellSize * 7}" fill="black"/>
-      <rect x="${qrSize - cellSize * 6}" y="${cellSize}" width="${cellSize * 5}" height="${cellSize * 5}" fill="white"/>
-      <rect x="${qrSize - cellSize * 5}" y="${cellSize * 2}" width="${cellSize * 3}" height="${cellSize * 3}" fill="black"/>
-      <rect x="0" y="${qrSize - cellSize * 7}" width="${cellSize * 7}" height="${cellSize * 7}" fill="black"/>
-      <rect x="${cellSize}" y="${qrSize - cellSize * 6}" width="${cellSize * 5}" height="${cellSize * 5}" fill="white"/>
-      <rect x="${cellSize * 2}" y="${qrSize - cellSize * 5}" width="${cellSize * 3}" height="${cellSize * 3}" fill="black"/>
-      <text x="${qrSize / 2}" y="${qrSize / 2 + cellSize * 4}" font-family="Arial" font-size="${cellSize * 1.5}" text-anchor="middle" fill="#333">Scan</text>
-    </svg>
-  `
-  return `data:image/svg+xml;base64,${btoa(svg)}`
-}
-
 /** Generate a real QR code using the QR Server API (online) or built-in */
 function getQRCodeUrl(text: string, size = 200): string {
   // Use a free QR code service
@@ -122,18 +93,18 @@ export function WeChatAccessView({ onBack }: WeChatAccessViewProps = {}) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
   const [qrRefreshing, setQrRefreshing] = useState(false)
   const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [hasWeChatChannel, setHasWeChatChannel] = useState(false)
 
   const loadCredentials = useCallback(async () => {
     setCredentialsLoading(true)
     try {
       const cfg = await window.electronAPI.configRead()
-      const w = cfg?.channels?.wechat ?? cfg?.channels?.['openclaw-weixin']
-      setAgentId(typeof w?.agentId === 'string' ? w.agentId : '')
-      setAppSecret(typeof w?.appSecret === 'string' ? w.appSecret : '')
-      setToken(typeof w?.token === 'string' ? w.token : '')
-      setEncodingAesKey(typeof w?.encodingAesKey === 'string' ? w.encodingAesKey : '')
-      setHasWeChatChannel(Boolean(w && (w.agentId || w.appSecret)))
+      const w = (cfg?.channels?.wechat ?? cfg?.channels?.['openclaw-weixin']) as WeChatChannelConfig | undefined
+      if (w) {
+        setAgentId(typeof w.agentId === 'string' ? w.agentId : '')
+        setAppSecret(typeof w.appSecret === 'string' ? w.appSecret : '')
+        setToken(typeof w.token === 'string' ? w.token : '')
+        setEncodingAesKey(typeof w.encodingAesKey === 'string' ? w.encodingAesKey : '')
+      }
     } catch {
       // non-fatal
     } finally {
@@ -164,10 +135,10 @@ export function WeChatAccessView({ onBack }: WeChatAccessViewProps = {}) {
     }
   }, [t])
 
-  const refreshQRCode = useCallback(() => {
+  const refreshQRCode = useCallback(async () => {
     setQrRefreshing(true)
-    const gatewayStatus = window.electronAPI.gatewayStatus()
-    const baseUrl = `http://127.0.0.1:${gatewayStatus?.port ?? 18789}`
+    const status = await window.electronAPI.gatewayStatus()
+    const baseUrl = `http://127.0.0.1:${status?.port ?? 18789}`
     const qrUrl = getQRCodeUrl(`${baseUrl}/wechat/pairing?ts=${Date.now()}`, 200)
     setQrCodeUrl(qrUrl)
     setTimeout(() => setQrRefreshing(false), 500)
@@ -280,7 +251,6 @@ export function WeChatAccessView({ onBack }: WeChatAccessViewProps = {}) {
   const unknownTime = t('shell.wechat.unknownTime')
   const pendingCount = pending.length
   const approvedCount = approved.length
-  const hasPending = pendingCount > 0
 
   return (
     <ShellLayout title={t('shell.wechat.title')} onBack={handleBack}>

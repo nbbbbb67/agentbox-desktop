@@ -203,12 +203,12 @@ export interface FeishuApprovedSender {
 }
 
 export interface PairingListPendingResult {
-  channel: 'feishu'
+  channel: 'feishu' | 'wechat'
   requests: FeishuPairingRequest[]
 }
 
 export interface PairingListApprovedResult {
-  channel: 'feishu'
+  channel: 'feishu' | 'wechat'
   senders: FeishuApprovedSender[]
 }
 

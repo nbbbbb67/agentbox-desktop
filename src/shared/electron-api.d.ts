@@ -197,10 +197,10 @@ export interface ElectronAPI {
   backupCreate: (opts?: { output?: string; includeWorkspace?: boolean; onlyConfig?: boolean; verify?: boolean }) => Promise<BackupCreateResult>
   backupVerify: (archivePath: string) => Promise<BackupVerifyResult>
 
-  pairingListPending: (opts: { channel: 'feishu' }) => Promise<PairingListPendingResult>
-  pairingListApproved: (opts: { channel: 'feishu' }) => Promise<PairingListApprovedResult>
-  pairingApprove: (opts: { channel: 'feishu'; code: string; openId?: string }) => Promise<PairingApproveResult>
-  pairingRemoveApproved: (opts: { channel: 'feishu'; openId: string }) => Promise<{ ok: boolean }>
+  pairingListPending: (opts: { channel: 'feishu' | 'wechat' }) => Promise<PairingListPendingResult>
+  pairingListApproved: (opts: { channel: 'feishu' | 'wechat' }) => Promise<PairingListApprovedResult>
+  pairingApprove: (opts: { channel: 'feishu' | 'wechat'; code: string; openId?: string }) => Promise<PairingApproveResult>
+  pairingRemoveApproved: (opts: { channel: 'feishu' | 'wechat'; openId: string }) => Promise<{ ok: boolean }>
 
   // ─── Event subscriptions ───────────────────────────────────────────────────
   onGatewayStatusChange: (callback: (status: GatewayStatus) => void) => Unsubscribe

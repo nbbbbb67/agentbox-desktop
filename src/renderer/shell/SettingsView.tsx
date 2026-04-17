@@ -104,7 +104,7 @@ function themeLabelKey(value: ShellTheme): `shell.settings.${'system' | 'light' 
   return `shell.settings.${value}`
 }
 
-export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps = {}) {
+export function SettingsView({ onBack, onOpenFeishuSettings, onOpenWeChatSettings }: SettingsViewProps = {}) {
   const { t, i18n } = useTranslation()
   const handleBack = onBack ?? defaultNavigateBack
   const [config, setConfig] = useState<ShellConfig | null>(null)

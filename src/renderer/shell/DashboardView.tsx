@@ -13,7 +13,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { GatewayStatus, GatewayStatusValue, AppVersionInfo } from '../../shared/types'
+import type { GatewayStatus, GatewayStatusValue, AppVersionInfo, WeChatChannelConfig } from '../../shared/types'
 import { formatMainVersion } from '@/utils/version-format'
 
 const STATUS_COLORS: Record<GatewayStatusValue, string> = {
@@ -180,7 +180,7 @@ export function DashboardView({
       .then((cfg) => {
         const f = cfg?.channels?.feishu
         setHasFeishuChannel(Boolean(f && (f.appId || f.appSecret)))
-        const w = cfg?.channels?.wechat ?? cfg?.channels?.['openclaw-weixin']
+        const w = (cfg?.channels?.wechat ?? cfg?.channels?.['openclaw-weixin']) as WeChatChannelConfig | undefined
         setHasWeChatChannel(Boolean(w && (w.agentId || w.appSecret)))
       })
       .catch(() => {

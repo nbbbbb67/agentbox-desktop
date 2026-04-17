@@ -71,11 +71,6 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
 ]
 
-const WECHAT_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNode; description: string }[] = [
-  { id: 'feishu-settings', label: '飞书设置', icon: <Settings className="w-4 h-4" />, description: '飞书通道配置' },
-  { id: 'wechat-settings', label: '微信设置', icon: <Settings className="w-4 h-4" />, description: '微信通道配置' },
-]
-
 export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShellLayoutProps) {
   const { t } = useTranslation()
   const [gatewayView, setGatewayView] = useState<'loading' | 'error'>('loading')
