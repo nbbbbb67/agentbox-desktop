@@ -140,6 +140,45 @@ export interface AgentsConfig {
   list?: AgentListEntry[]
 }
 
+/** WeChat channel config */
+export interface WeChatChannelConfig {
+  /** WeChat WebHook or agent ID for official account */
+  agentId?: string
+  /** WeChat app secret */
+  appSecret?: string
+  /** WeChat app token for verification */
+  token?: string
+  /** WeChat encoding AES key */
+  encodingAesKey?: string
+  /** DM policy: open | pairing | allowlist | disabled */
+  dmPolicy?: 'pairing' | 'open' | 'allowlist' | 'disabled'
+  /** Whether channel is enabled */
+  enabled?: boolean
+}
+
+/** WeChat pairing request */
+export interface WeChatPairingRequest {
+  code: string
+  wxid?: string
+  nickname?: string
+  createdAt?: string
+  expiresAt?: string
+}
+
+export interface WeChatApprovedSender {
+  wxid: string
+}
+
+export interface WeChatPairingListPendingResult {
+  channel: 'wechat'
+  requests: WeChatPairingRequest[]
+}
+
+export interface WeChatPairingListApprovedResult {
+  channel: 'wechat'
+  senders: WeChatApprovedSender[]
+}
+
 /** Feishu (Lark) channel config */
 export interface FeishuChannelConfig {
   appId?: string
@@ -217,6 +256,8 @@ export interface ChannelsConfig {
   discord?: DiscordChannelConfig
   slack?: SlackChannelConfig
   whatsapp?: WhatsAppChannelConfig
+  wechat?: WeChatChannelConfig
+  /** Dynamic channel entries (e.g. openclaw-weixin) */
   [key: string]: unknown
 }
 

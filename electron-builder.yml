@@ -1,6 +1,6 @@
-appId: com.openclaw.desktop
-productName: OpenClaw Desktop
-copyright: Copyright © 2026 wurongzhao@AgentKernel
+appId: com.agentbox.desktop
+productName: AgentBox
+copyright: Copyright © 2026 AgentBox Team
 
 directories:
   output: dist
@@ -27,7 +27,7 @@ win:
       arch:
         - x64
   icon: resources/icon.ico
-  artifactName: "OpenClaw-Setup-${version}.${ext}"
+  artifactName: "AgentBox-Setup-${version}.${ext}"
   # 在 CI 中设置 CSC_LINK + CSC_KEY_PASSWORD 时进行代码签名
   signAndEditExecutable: true
 
@@ -47,7 +47,7 @@ nsis:
   license: resources/installer/license.txt
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: OpenClaw Desktop
+  shortcutName: AgentBox
   runAfterFinish: true
   deleteAppDataOnUninstall: false
 

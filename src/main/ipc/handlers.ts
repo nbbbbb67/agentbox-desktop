@@ -199,6 +199,12 @@ function assertFeishuPairingChannel(channel: unknown): asserts channel is 'feish
   }
 }
 
+function assertWeChatPairingChannel(channel: unknown): asserts channel is 'wechat' {
+  if (channel !== 'wechat') {
+    throw new Error('Only WeChat pairing is supported for wechat channel')
+  }
+}
+
 function validateExternalUrl(url: unknown): string {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('URL must be a non-empty string')
@@ -1025,6 +1031,67 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     IPC_PAIRING_REMOVE_APPROVED,
     wrapHandler('PAIRING_REMOVE_APPROVED', (payload: unknown) => {
       const obj = validatePlainObject(payload, 'pairingRemoveApproved')
+      assertFeishuPairingChannel(obj.channel)
+      const openId = typeof obj.openId === 'string' ? obj.openId.trim() : ''
+      if (!openId) {
+        throw new Error('openId is required')
+      }
+      return removeApprovedFeishuSender(openId)
+    }),
+  )
+
+  // ─── WeChat pairing (delegates to openclaw-weixin plugin via gateway RPC) ───
+  ipcMain.handle(
+    IPC_PAIRING_LIST_PENDING,
+    wrapHandler('PAIRING_LIST_PENDING', (payload: unknown) => {
+      const obj = validatePlainObject(payload, 'pairingListPending')
+      if (obj.channel === 'wechat') {
+        return listPendingWeChatPairing()
+      }
+      assertFeishuPairingChannel(obj.channel)
+      return listPendingFeishuPairing()
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_PAIRING_LIST_APPROVED,
+    wrapHandler('PAIRING_LIST_APPROVED', (payload: unknown) => {
+      const obj = validatePlainObject(payload, 'pairingListApproved')
+      if (obj.channel === 'wechat') {
+        return listApprovedWeChatSenders()
+      }
+      assertFeishuPairingChannel(obj.channel)
+      return listApprovedFeishuSenders()
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_PAIRING_APPROVE,
+    wrapHandler('PAIRING_APPROVE', (payload: unknown) => {
+      const obj = validatePlainObject(payload, 'pairingApprove')
+      if (obj.channel === 'wechat') {
+        const code = typeof obj.code === 'string' ? obj.code : ''
+        const openId = typeof obj.openId === 'string' ? obj.openId : undefined
+        return approveWeChatPairing(code, openId)
+      }
+      assertFeishuPairingChannel(obj.channel)
+      const code = typeof obj.code === 'string' ? obj.code : ''
+      const openId = typeof obj.openId === 'string' ? obj.openId : undefined
+      return approveFeishuPairing(code, openId)
+    }),
+  )
+
+  ipcMain.handle(
+    IPC_PAIRING_REMOVE_APPROVED,
+    wrapHandler('PAIRING_REMOVE_APPROVED', (payload: unknown) => {
+      const obj = validatePlainObject(payload, 'pairingRemoveApproved')
+      if (obj.channel === 'wechat') {
+        const openId = typeof obj.openId === 'string' ? obj.openId.trim() : ''
+        if (!openId) {
+          throw new Error('openId is required')
+        }
+        return removeApprovedWeChatSender(openId)
+      }
       assertFeishuPairingChannel(obj.channel)
       const openId = typeof obj.openId === 'string' ? obj.openId.trim() : ''
       if (!openId) {

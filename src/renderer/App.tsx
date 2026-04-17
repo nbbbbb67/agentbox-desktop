@@ -17,6 +17,8 @@ const VALID_HASH_PANELS = new Set<string>([
   'skills',
   'updates',
   'feishu-settings',
+  'wechat-settings',
+  'tui-mode',
 ])
 
 /** Map legacy hashes and drop unknown fragments (e.g. pasted gateway #token=…) so we don't open a bogus “panel”. */
@@ -86,6 +88,8 @@ function App() {
         skills: t('shell.skillsPanel.title'),
         updates: t('shell.updates.title'),
         'feishu-settings': t('shell.feishu.title'),
+        'wechat-settings': t('shell.wechat.title'),
+        'tui-mode': 'TUI Mode',
       }
       const segment = panelTitles[route] ?? t('shell.dashboard.title')
       syncNativeWindowTitle(`${segment} - ${t('app.name')}`)
@@ -114,7 +118,8 @@ function App() {
       route === 'llm-api' ||
       route === 'skills' ||
       route === 'updates' ||
-      route === 'feishu-settings'
+      route === 'feishu-settings' ||
+      route === 'wechat-settings'
         ? route
         : ''
     return <EmbeddedShellLayout activePanel={panel} onPanelChange={handlePanelChange} />

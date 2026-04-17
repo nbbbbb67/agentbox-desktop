@@ -18,6 +18,7 @@ import { ProviderView } from './ProviderView'
 import { SkillsView } from './SkillsView'
 import { UpdateView } from './UpdateView'
 import { FeishuAccessView } from './FeishuAccessView'
+import { WeChatAccessView } from './WeChatAccessView'
 import type { GatewayStatus, GatewayStatusValue } from '../../shared/types'
 import { useUpdateNoticeStore } from '@/stores/update-store'
 
@@ -45,6 +46,8 @@ export type EmbeddedPanel =
   | 'skills'
   | 'updates'
   | 'feishu-settings'
+  | 'wechat-settings'
+  | 'tui-mode'
 
 export interface EmbeddedShellLayoutProps {
   activePanel: EmbeddedPanel
@@ -66,6 +69,11 @@ const DESKTOP_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNo
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" />, description: 'Check for updates' },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'Appearance & startup' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" />, description: 'Version info' },
+]
+
+const WECHAT_NAV_ITEMS: { id: EmbeddedPanel; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: 'feishu-settings', label: '飞书设置', icon: <Settings className="w-4 h-4" />, description: '飞书通道配置' },
+  { id: 'wechat-settings', label: '微信设置', icon: <Settings className="w-4 h-4" />, description: '微信通道配置' },
 ]
 
 export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShellLayoutProps) {
@@ -281,6 +289,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
           <SettingsView
             onBack={() => onPanelChange('')}
             onOpenFeishuSettings={() => onPanelChange('feishu-settings')}
+            onOpenWeChatSettings={() => onPanelChange('wechat-settings')}
           />
         )
       case 'about':
@@ -293,6 +302,7 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             onNavigateToSkills={() => handleNavigateToPanel('skills')}
             onNavigateToUpdates={() => handleNavigateToPanel('updates')}
             onNavigateToFeishuSettings={() => handleNavigateToPanel('feishu-settings')}
+            onNavigateToWeChatSettings={() => handleNavigateToPanel('wechat-settings')}
             updateAvailable={updateAvailable && !updateDismissed}
             updateVersion={updateInfo?.version}
             onDismissUpdateNotice={() => dismissUpdateNotice()}
@@ -314,6 +324,8 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
         )
       case 'feishu-settings':
         return <FeishuAccessView onBack={() => onPanelChange('settings')} />
+      case 'wechat-settings':
+        return <WeChatAccessView onBack={() => onPanelChange('settings')} />
       default:
         return null
     }
@@ -366,7 +378,9 @@ export function EmbeddedShellLayout({ activePanel, onPanelChange }: EmbeddedShel
             <span className="text-sm font-medium">
               {activePanel === 'feishu-settings'
                 ? t('shell.feishu.title')
-                : DESKTOP_NAV_ITEMS.find((item) => item.id === activePanel)?.label ?? activePanel}
+                : activePanel === 'wechat-settings'
+                  ? t('shell.wechat.title')
+                  : DESKTOP_NAV_ITEMS.find((item) => item.id === activePanel)?.label ?? activePanel}
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">{renderPanelContent()}</div>

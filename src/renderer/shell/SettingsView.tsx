@@ -24,6 +24,8 @@ export interface SettingsViewProps {
   onBack?: () => void
   /** Open Feishu pairing / allowlist panel */
   onOpenFeishuSettings?: () => void
+  /** Open WeChat pairing / allowlist panel */
+  onOpenWeChatSettings?: () => void
 }
 
 function defaultNavigateBack() {
@@ -293,6 +295,17 @@ export function SettingsView({ onBack, onOpenFeishuSettings }: SettingsViewProps
             </div>
             <Button type="button" variant="secondary" className="w-fit" onClick={onOpenFeishuSettings}>
               {t('shell.settings.openFeishuSettings')}
+            </Button>
+          </section>
+        )}
+        {onOpenWeChatSettings && (
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4" aria-label={t('shell.settings.wechatSection')}>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">{t('shell.settings.wechatSection')}</span>
+              <p className="text-xs text-muted-foreground">{t('shell.settings.wechatSectionDesc')}</p>
+            </div>
+            <Button type="button" variant="secondary" className="w-fit" onClick={onOpenWeChatSettings}>
+              {t('shell.settings.openWeChatSettings')}
             </Button>
           </section>
         )}

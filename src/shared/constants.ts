@@ -10,7 +10,13 @@ export const DEFAULT_GATEWAY_PORT = 18789
 export const OPENCLAW_USER_DIR = '.openclaw'
 
 /** Shell product name (under %APPDATA%) */
-export const APP_NAME = 'OpenClaw Desktop'
+export const APP_NAME = 'AgentBox'
+
+/** WeChat channel identifier */
+export const WECHAT_CHANNEL_ID = 'openclaw-weixin'
+
+/** WeChat QR code refresh interval (ms) */
+export const WECHAT_QR_REFRESH_INTERVAL_MS = 30_000
 
 /** Main OpenClaw config filename */
 export const OPENCLAW_CONFIG_FILE = 'openclaw.json'

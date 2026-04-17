@@ -1,9 +1,9 @@
 {
-  "name": "openclaw-desktop",
-  "version": "0.7.0+openclaw.2026.4.2",
+  "name": "agentbox-desktop",
+  "version": "1.0.0+openclaw.2026.4.2",
   "openclawBundleVersion": "2026.4.2",
   "openclawFeishuLarkSdkVersion": "^1.60.0",
-  "description": "Community-maintained Windows desktop app and installer for OpenClaw.",
+  "description": "AI Agent Hub - Windows desktop app with WeChat, TUI and Web UI for OpenClaw.",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
